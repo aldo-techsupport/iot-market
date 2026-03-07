@@ -1,0 +1,232 @@
+{
+  "example_1_get_available_sensors": {
+    "endpoint": "GET /api/devices/sensors/available",
+    "response": {
+      "success": true,
+      "data": [
+        {
+          "name": "temperature",
+          "label": "Suhu (°C)",
+          "category": "Environmental"
+        },
+        {
+          "name": "humidity",
+          "label": "Kelembaban (%RH)",
+          "category": "Environmental"
+        },
+        {
+          "name": "air_pressure",
+          "label": "Tekanan Udara (hPa)",
+          "category": "Environmental"
+        },
+        {
+          "name": "air_quality",
+          "label": "Kualitas Udara (AQI)",
+          "category": "Environmental"
+        },
+        {
+          "name": "co2",
+          "label": "CO2 (ppm)",
+          "category": "Environmental"
+        },
+        {
+          "name": "co",
+          "label": "CO (ppm)",
+          "category": "Environmental"
+        },
+        {
+          "name": "nh3",
+          "label": "NH3/Amonia (ppm)",
+          "category": "Environmental"
+        },
+        {
+          "name": "h2s",
+          "label": "H2S (ppm)",
+          "category": "Environmental"
+        },
+        {
+          "name": "voc",
+          "label": "VOC (ppm)",
+          "category": "Environmental"
+        },
+        {
+          "name": "noise",
+          "label": "Kebisingan (dB)",
+          "category": "Environmental"
+        },
+        {
+          "name": "light_intensity",
+          "label": "Intensitas Cahaya (Lux)",
+          "category": "Environmental"
+        },
+        {
+          "name": "vibration",
+          "label": "Getaran (mm/s)",
+          "category": "Vibration & Rotation"
+        },
+        {
+          "name": "rpm",
+          "label": "RPM (RPM)",
+          "category": "Vibration & Rotation"
+        },
+        {
+          "name": "voltage",
+          "label": "Tegangan (Volt)",
+          "category": "Electrical"
+        },
+        {
+          "name": "current",
+          "label": "Arus (Ampere)",
+          "category": "Electrical"
+        },
+        {
+          "name": "active_power",
+          "label": "Daya Aktif (Watt)",
+          "category": "Electrical"
+        },
+        {
+          "name": "apparent_power",
+          "label": "Daya Semu (VA)",
+          "category": "Electrical"
+        },
+        {
+          "name": "reactive_power",
+          "label": "Daya Reaktif (VAR)",
+          "category": "Electrical"
+        },
+        {
+          "name": "energy",
+          "label": "Energi (kWh)",
+          "category": "Electrical"
+        },
+        {
+          "name": "frequency",
+          "label": "Frekuensi (Hz)",
+          "category": "Electrical"
+        },
+        {
+          "name": "power_factor",
+          "label": "Power Factor (Cos φ)",
+          "category": "Electrical"
+        },
+        {
+          "name": "thd",
+          "label": "THD (%)",
+          "category": "Electrical"
+        },
+        "... dan 31 sensor lainnya"
+      ]
+    }
+  },
+  "example_2_create_device_with_selected_sensors": {
+    "endpoint": "POST /api/devices",
+    "request": {
+      "device_id": "TEMP001",
+      "device_name": "Sensor Suhu Ruangan",
+      "description": "Monitoring ruang server",
+      "sensors": [
+        "temperature",
+        "humidity",
+        "air_quality"
+      ]
+    },
+    "response": {
+      "success": true,
+      "message": "Device berhasil dibuat",
+      "data": {
+        "device": {
+          "id": 1,
+          "device_id": "TEMP001",
+          "device_name": "Sensor Suhu Ruangan",
+          "description": "Monitoring ruang server",
+          "is_active": true,
+          "last_seen": null,
+          "created_at": "2026-02-25T10:30:00.000000Z",
+          "updated_at": "2026-02-25T10:30:00.000000Z"
+        },
+        "api_key": "PUuy6SxanCn6PR70iK8dEde8rBlbI1ZsHgJI25mRRhbHaywAt7F0gLnUjjf9efOG",
+        "sensors": [
+          {
+            "id": 1,
+            "device_id": 1,
+            "sensor_name": "temperature",
+            "is_enabled": true,
+            "created_at": "2026-02-25T10:30:00.000000Z",
+            "updated_at": "2026-02-25T10:30:00.000000Z"
+          },
+          {
+            "id": 2,
+            "device_id": 1,
+            "sensor_name": "humidity",
+            "is_enabled": true,
+            "created_at": "2026-02-25T10:30:00.000000Z",
+            "updated_at": "2026-02-25T10:30:00.000000Z"
+          },
+          {
+            "id": 3,
+            "device_id": 1,
+            "sensor_name": "air_quality",
+            "is_enabled": true,
+            "created_at": "2026-02-25T10:30:00.000000Z",
+            "updated_at": "2026-02-25T10:30:00.000000Z"
+          }
+        ]
+      }
+    }
+  },
+  "example_3_iot_device_sends_data": {
+    "endpoint": "POST /api/iot/data",
+    "description": "Device mengirim 5 sensor, tapi hanya 3 yang diaktifkan",
+    "request": {
+      "device_id": "TEMP001",
+      "temperature": 25.5,
+      "humidity": 60.0,
+      "air_quality": 45,
+      "noise": 55.0,
+      "light_intensity": 850.0
+    },
+    "response": {
+      "success": true,
+      "message": "Data berhasil disimpan",
+      "data": {
+        "id": 1,
+        "device_id": "TEMP001",
+        "temperature": 25.5,
+        "humidity": 60.0,
+        "air_quality": 45,
+        "created_at": "2026-02-25T10:35:00.000000Z",
+        "updated_at": "2026-02-25T10:35:00.000000Z"
+      }
+    },
+    "note": "noise dan light_intensity TIDAK disimpan karena tidak diaktifkan di device settings"
+  },
+  "example_4_sensor_not_allowed": {
+    "endpoint": "POST /api/iot/data",
+    "description": "Device mengirim sensor yang tidak diaktifkan",
+    "request": {
+      "device_id": "TEMP001",
+      "noise": 55.0,
+      "light_intensity": 850.0
+    },
+    "response": {
+      "success": false,
+      "message": "Tidak ada sensor yang diizinkan untuk device ini",
+      "enabled_sensors": [
+        "temperature",
+        "humidity",
+        "air_quality"
+      ]
+    }
+  },
+  "categories_summary": {
+    "Environmental": 11,
+    "Vibration & Rotation": 2,
+    "Electrical": 11,
+    "Flow & Pressure": 9,
+    "Machine Status": 7,
+    "Safety": 5,
+    "Agriculture & Water": 5,
+    "Weather": 3,
+    "total_sensors": 53
+  }
+}

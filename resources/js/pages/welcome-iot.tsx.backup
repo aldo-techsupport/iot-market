@@ -1,0 +1,196 @@
+import { Head, Link, usePage } from '@inertiajs/react';
+import { dashboard, login, register } from '@/routes';
+
+interface LandingSection {
+    id: number;
+    section: string;
+    content: any;
+    is_active: boolean;
+}
+
+interface Props {
+    canRegister?: boolean;
+    landingData: {
+        hero?: LandingSection;
+        features?: LandingSection;
+        about?: LandingSection;
+    };
+}
+
+export default function WelcomeIoT({ canRegister = true, landingData }: Props) {
+    const { auth } = usePage().props;
+    const hero = landingData?.hero?.content;
+    const features = landingData?.features?.content;
+    const about = landingData?.about?.content;
+
+    return (
+        <>
+            <Head title="Welcome">
+                <link rel="preconnect" href="https://fonts.bunny.net" />
+                <link
+                    href="https://fonts.bunny.net/css?family=instrument-sans:400,500,600"
+                    rel="stylesheet"
+                />
+            </Head>
+            
+            <div className="min-h-screen bg-white dark:bg-gray-900">
+                {/* Header */}
+                <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-sm border-b border-gray-200 dark:bg-gray-900/80 dark:border-gray-800">
+                    <div className="container mx-auto px-6 py-4">
+                        <nav className="flex items-center justify-between">
+                            <div className="text-2xl font-bold text-blue-600">IoT Platform</div>
+                            <div className="flex items-center gap-4">
+                                {auth.user ? (
+                                    <Link
+                                        href={dashboard()}
+                                        className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+                                    >
+                                        Dashboard
+                                    </Link>
+                                ) : (
+                                    <>
+                                        <Link
+                                            href={login()}
+                                            className="text-sm font-medium text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"
+                                        >
+                                            Log in
+                                        </Link>
+                                        {canRegister && (
+                                            <Link
+                                                href={register()}
+                                                className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-medium text-white hover:bg-blue-700 transition"
+                                            >
+                                                Get Started
+                                            </Link>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </nav>
+                    </div>
+                </header>
+
+                {/* Hero Section */}
+                <section className="relative pt-32 pb-20 overflow-hidden">
+                    <div className="container mx-auto px-6">
+                        <div className="max-w-4xl mx-auto text-center">
+                            <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
+                                {hero?.title || 'Smart Home & IoT Solutions'}
+                            </h1>
+                            <p className="text-xl text-gray-600 dark:text-gray-400 mb-8">
+                                {hero?.subtitle || 'Transform your home into an intelligent living space'}
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+                                <Link
+                                    href={hero?.primary_button_url || '/register'}
+                                    className="rounded-lg bg-blue-600 px-8 py-4 text-base font-semibold text-white hover:bg-blue-700 transition"
+                                >
+                                    {hero?.primary_button_text || 'Get Started'}
+                                </Link>
+                                <Link
+                                    href={hero?.secondary_button_url || '/about'}
+                                    className="rounded-lg bg-gray-100 px-8 py-4 text-base font-semibold text-gray-900 hover:bg-gray-200 transition dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700"
+                                >
+                                    {hero?.secondary_button_text || 'Learn More'}
+                                </Link>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    {/* Background decoration */}
+                    <div className="absolute right-0 top-0 -z-10 opacity-30">
+                        <svg width="450" height="556" viewBox="0 0 450 556" fill="none">
+                            <circle cx="277" cy="63" r="225" fill="url(#paint0_linear)" />
+                            <defs>
+                                <linearGradient id="paint0_linear" x1="-54.5" y1="-178" x2="222" y2="288">
+                                    <stop stopColor="#3B82F6" />
+                                    <stop offset="1" stopColor="#3B82F6" stopOpacity="0" />
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                    </div>
+                </section>
+
+                {/* Features Section */}
+                {features && (
+                    <section className="py-20 bg-gray-50 dark:bg-gray-800">
+                        <div className="container mx-auto px-6">
+                            <div className="text-center mb-16">
+                                <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-4">
+                                    {features.title}
+                                </h2>
+                                <p className="text-xl text-gray-600 dark:text-gray-400">
+                                    {features.subtitle}
+                                </p>
+                            </div>
+                            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                {features.items?.map((item: any, index: number) => (
+                                    <div
+                                        key={index}
+                                        className="bg-white dark:bg-gray-900 p-8 rounded-xl shadow-sm hover:shadow-md transition"
+                                    >
+                                        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-lg flex items-center justify-center mb-4">
+                                            <span className="text-2xl">
+                                                {item.icon === 'monitor' && '📊'}
+                                                {item.icon === 'automation' && '⚙️'}
+                                                {item.icon === 'energy' && '⚡'}
+                                                {item.icon === 'security' && '🔒'}
+                                                {item.icon === 'voice' && '🎤'}
+                                                {item.icon === 'support' && '💬'}
+                                            </span>
+                                        </div>
+                                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                                            {item.title}
+                                        </h3>
+                                        <p className="text-gray-600 dark:text-gray-400">
+                                            {item.description}
+                                        </p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* About Section */}
+                {about && (
+                    <section className="py-20">
+                        <div className="container mx-auto px-6">
+                            <div className="max-w-4xl mx-auto text-center">
+                                <h2 className="text-4xl font-bold text-gray-900 dark:text-white mb-6">
+                                    {about.title}
+                                </h2>
+                                <p className="text-xl text-gray-600 dark:text-gray-400 mb-12">
+                                    {about.description}
+                                </p>
+                                {about.stats && (
+                                    <div className="grid md:grid-cols-3 gap-8">
+                                        {about.stats.map((stat: any, index: number) => (
+                                            <div key={index} className="text-center">
+                                                <div className="text-4xl font-bold text-blue-600 mb-2">
+                                                    {stat.value}
+                                                </div>
+                                                <div className="text-gray-600 dark:text-gray-400">
+                                                    {stat.label}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </section>
+                )}
+
+                {/* Footer */}
+                <footer className="bg-gray-900 text-white py-12">
+                    <div className="container mx-auto px-6 text-center">
+                        <p className="text-gray-400">
+                            © {new Date().getFullYear()} IoT Platform. All rights reserved.
+                        </p>
+                    </div>
+                </footer>
+            </div>
+        </>
+    );
+}

@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoT Device Registration - Example</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .sensors-section {
+            margin-top: 30px;
+        }
+        
+        .sensors-section h2 {
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #4CAF50;
+        }
+        
+        .category {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .category h3 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 10px;
+        }
+        
+        .sensor-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        
+        .sensor-item:hover {
+            background: #e8f5e9;
+        }
+        
+        .sensor-item input[type="checkbox"] {
+            margin-right: 10px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .sensor-item label {
+            margin: 0;
+            cursor: pointer;
+            font-weight: normal;
+            flex: 1;
+        }
+        
+        .selected-count {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .btn {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #45a049;
+        }
+        
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .api-key-result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            display: none;
+        }
+        
+        .api-key-result.show {
+            display: block;
+        }
+        
+        .api-key-result h3 {
+            color: #856404;
+            margin-bottom: 10px;
+        }
+        
+        .api-key-box {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 10px 0;
+            border: 1px solid #ffc107;
+        }
+        
+        .copy-btn {
+            background: #ffc107;
+            color: #333;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .select-all-btn {
+            background: #2196F3;
+            color: white;
+            padding: 6px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 10px;
+        }
+        
+        .category-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Register IoT Device</h1>
+        <p class="subtitle">Pilih sensor yang akan digunakan pada device Anda</p>
+        
+        <form id="deviceForm">
+            <div class="form-group">
+                <label for="device_id">Device ID *</label>
+                <input type="text" id="device_id" name="device_id" required placeholder="Contoh: TEMP001">
+            </div>
+            
+            <div class="form-group">
+                <label for="device_name">Device Name *</label>
+                <input type="text" id="device_name" name="device_name" required placeholder="Contoh: Sensor Suhu Ruangan">
+            </div>
+            
+            <div class="form-group">
+                <label for="description">Description</label>
+                <textarea id="description" name="description" placeholder="Deskripsi device (optional)"></textarea>
+            </div>
+            
+            <div class="sensors-section">
+                <h2>📊 Pilih Sensor yang Digunakan</h2>
+                <div class="selected-count">
+                    <span id="selectedCount">0</span> sensor dipilih
+                </div>
+                <div id="sensorsContainer" class="loading">
+                    Loading sensors...
+                </div>
+            </div>
+            
+            <button type="submit" class="btn" id="submitBtn" disabled>Create Device</button>
+        </form>
+        
+        <div id="apiKeyResult" class="api-key-result">
+            <h3>✅ Device Created Successfully!</h3>
+            <p><strong>⚠️ IMPORTANT:</strong> Save this API Key! It won't be shown again.</p>
+            
+            <div class="api-key-box" id="apiKeyDisplay"></div>
+            
+            <button class="copy-btn" onclick="copyApiKey()">📋 Copy API Key</button>
+            
+            <h4 style="margin-top: 20px;">API Endpoint:</h4>
+            <div class="api-key-box" id="endpointDisplay"></div>
+            
+            <h4 style="margin-top: 20px;">Example cURL:</h4>
+            <div class="api-key-box" id="curlExample"></div>
+        </div>
+        
+        <div id="errorMessage" class="error" style="display: none;"></div>
+    </div>
+
+    <script>
+        // GANTI DENGAN URL API ANDA
+        const API_BASE_URL = 'http://localhost:8000/api';
+        
+        let availableSensors = [];
+        let selectedSensors = [];
+        
+        // Load sensors saat halaman dimuat
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAvailableSensors();
+        });
+        
+        // Load daftar sensor dari API
+        async function loadAvailableSensors() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/devices/sensors/available`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    availableSensors = data.data;
+                    renderSensors();
+                } else {
+                    showError('Gagal memuat daftar sensor');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        }
+        
+        // Render sensors grouped by category
+        function renderSensors() {
+            const container = document.getElementById('sensorsContainer');
+            
+            // Group sensors by category
+            const grouped = availableSensors.reduce((acc, sensor) => {
+                if (!acc[sensor.category]) {
+                    acc[sensor.category] = [];
+                }
+                acc[sensor.category].push(sensor);
+                return acc;
+            }, {});
+            
+            // Render HTML
+            let html = '';
+            for (const [category, sensors] of Object.entries(grouped)) {
+                html += `
+                    <div class="category">
+                        <div class="category-header">
+                            <h3>${category} (${sensors.length} sensors)</h3>
+                            <button type="button" class="select-all-btn" onclick="selectAllInCategory('${category}')">
+                                Select All
+                            </button>
+                        </div>
+                        <div class="sensor-grid">
+                `;
+                
+                sensors.forEach(sensor => {
+                    html += `
+                        <div class="sensor-item">
+                            <input 
+                                type="checkbox" 
+                                id="sensor_${sensor.name}" 
+                                value="${sensor.name}"
+                                onchange="updateSelectedSensors()"
+                            >
+                            <label for="sensor_${sensor.name}">${sensor.label}</label>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        // Select all sensors in a category
+        function selectAllInCategory(category) {
+            const sensors = availableSensors.filter(s => s.category === category);
+            sensors.forEach(sensor => {
+                const checkbox = document.getElementById(`sensor_${sensor.name}`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+            updateSelectedSensors();
+        }
+        
+        // Update selected sensors count
+        function updateSelectedSensors() {
+            const checkboxes = document.querySelectorAll('input[type="checkbox"]:checked');
+            selectedSensors = Array.from(checkboxes).map(cb => cb.value);
+            
+            document.getElementById('selectedCount').textContent = selectedSensors.length;
+            document.getElementById('submitBtn').disabled = selectedSensors.length === 0;
+        }
+        
+        // Handle form submit
+        document.getElementById('deviceForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (selectedSensors.length === 0) {
+                showError('Pilih minimal 1 sensor!');
+                return;
+            }
+            
+            const formData = {
+                device_id: document.getElementById('device_id').value,
+                device_name: document.getElementById('device_name').value,
+                description: document.getElementById('description').value,
+                sensors: selectedSensors
+            };
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/devices`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showApiKey(data.data);
+                } else {
+                    showError(data.message || 'Gagal membuat device');
+                }
+            } catch (error) {
+                showError('Error: ' + error.message);
+            }
+        });
+        
+        // Show API key result
+        function showApiKey(data) {
+            const apiKey = data.api_key;
+            const deviceId = data.device.device_id;
+            
+            document.getElementById('apiKeyDisplay').textContent = apiKey;
+            document.getElementById('endpointDisplay').textContent = 
+                `POST ${API_BASE_URL}/iot/data`;
+            
+            // Generate example cURL
+            const exampleData = {};
+            selectedSensors.slice(0, 3).forEach((sensor, i) => {
+                exampleData[sensor] = i === 0 ? 25.5 : (i === 1 ? 60.0 : 45.0);
+            });
+            
+            const curlCmd = `curl -X POST ${API_BASE_URL}/iot/data \\
+  -H "Content-Type: application/json" \\
+  -d '${JSON.stringify({device_id: deviceId, ...exampleData}, null, 2)}'`;
+            
+            document.getElementById('curlExample').textContent = curlCmd;
+            document.getElementById('apiKeyResult').classList.add('show');
+            
+            // Scroll to result
+            document.getElementById('apiKeyResult').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        // Copy API key to clipboard
+        function copyApiKey() {
+            const apiKey = document.getElementById('apiKeyDisplay').textContent;
+            navigator.clipboard.writeText(apiKey).then(() => {
+                alert('API Key copied to clipboard!');
+            });
+        }
+        
+        // Show error message
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

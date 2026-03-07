@@ -1,0 +1,121 @@
+{
+  "examples": {
+    "temperature_only": {
+      "device_id": "TEMP001",
+      "device_name": "Sensor Suhu Ruangan",
+      "temperature": 25.5
+    },
+    "temperature_humidity": {
+      "device_id": "TH001",
+      "device_name": "Sensor Suhu & Kelembaban",
+      "temperature": 28.3,
+      "humidity": 65.5
+    },
+    "environmental_complete": {
+      "device_id": "ENV001",
+      "device_name": "Environmental Sensor",
+      "temperature": 30.2,
+      "humidity": 70.5,
+      "air_pressure": 1013.25,
+      "air_quality": 45,
+      "co2": 420.5,
+      "co": 0.5,
+      "nh3": 0.2,
+      "h2s": 0.1,
+      "voc": 150.5,
+      "noise": 55.2,
+      "light_intensity": 850.5
+    },
+    "power_meter": {
+      "device_id": "POWER001",
+      "device_name": "Power Meter Gedung A",
+      "voltage": 220.5,
+      "current": 15.2,
+      "active_power": 3350.6,
+      "apparent_power": 3526.8,
+      "reactive_power": 1005.2,
+      "energy": 125.5,
+      "frequency": 50.1,
+      "power_factor": 0.95,
+      "thd": 2.5
+    },
+    "machine_monitoring": {
+      "device_id": "MACHINE001",
+      "device_name": "Mesin Produksi Line 1",
+      "machine_status": true,
+      "rpm": 1450,
+      "vibration": 2.5,
+      "temperature": 65.2,
+      "machine_load": 75.5,
+      "production_counter": 1250,
+      "machine_runtime": 8.5,
+      "torque": 150.5
+    },
+    "water_flow_monitoring": {
+      "device_id": "WATER001",
+      "device_name": "Water Flow Meter",
+      "water_flow": 125.5,
+      "pipe_pressure": 3.5,
+      "tank_level_percent": 75.5,
+      "tank_level_cm": 150.2,
+      "tank_volume": 5000.0,
+      "liquid_temperature": 25.5
+    },
+    "safety_system": {
+      "device_id": "SAFETY001",
+      "device_name": "Safety Monitoring System",
+      "fire_detected": false,
+      "smoke_detected": false,
+      "gas_leak_detected": false,
+      "door_status": true,
+      "abnormal_vibration": false,
+      "temperature": 28.5,
+      "co2": 400.0
+    },
+    "agriculture_sensor": {
+      "device_id": "AGRI001",
+      "device_name": "Agriculture Sensor",
+      "soil_moisture": 45.5,
+      "temperature": 28.5,
+      "humidity": 65.0,
+      "ph_level": 6.5,
+      "conductivity": 1500.5,
+      "water_level": 50.2
+    },
+    "weather_station": {
+      "device_id": "WEATHER001",
+      "device_name": "Weather Station",
+      "temperature": 32.5,
+      "humidity": 75.5,
+      "air_pressure": 1010.5,
+      "wind_speed": 5.2,
+      "wind_direction": 180.0,
+      "rainfall": 2.5,
+      "light_intensity": 50000.0
+    },
+    "pump_controller": {
+      "device_id": "PUMP001",
+      "device_name": "Pump Controller",
+      "pump_status": true,
+      "water_flow": 150.5,
+      "pipe_pressure": 4.5,
+      "voltage": 380.0,
+      "current": 25.5,
+      "active_power": 9690.0,
+      "frequency": 50.0
+    },
+    "gas_monitoring": {
+      "device_id": "GAS001",
+      "device_name": "Gas Monitoring System",
+      "gas_pressure": 5.5,
+      "gas_flow": 150.5,
+      "temperature": 25.0,
+      "gas_leak_detected": false,
+      "valve_status": true
+    },
+    "minimal_example": {
+      "device_id": "MINIMAL001",
+      "temperature": 25.0
+    }
+  }
+}

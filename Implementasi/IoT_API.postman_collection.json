@@ -1,0 +1,298 @@
+{
+  "info": {
+    "name": "IoT API Collection",
+    "description": "Collection untuk testing IoT API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/api/iot",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Store Single Data",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"TEMP001\",\n  \"device_name\": \"Sensor Suhu Ruangan\",\n  \"temperature\": 25.5,\n  \"humidity\": 65.2\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/data",
+          "host": ["{{base_url}}"],
+          "path": ["data"]
+        }
+      }
+    },
+    {
+      "name": "2. Batch Store Data",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"data\": [\n    {\n      \"device_id\": \"TEMP001\",\n      \"temperature\": 25.5,\n      \"humidity\": 60.0\n    },\n    {\n      \"device_id\": \"TEMP001\",\n      \"temperature\": 26.0,\n      \"humidity\": 61.5\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/data/batch",
+          "host": ["{{base_url}}"],
+          "path": ["data", "batch"]
+        }
+      }
+    },
+    {
+      "name": "3. Get Latest Data",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/data/latest/TEMP001",
+          "host": ["{{base_url}}"],
+          "path": ["data", "latest", "TEMP001"]
+        }
+      }
+    },
+    {
+      "name": "4. Get History with Pagination",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/data/history/TEMP001?per_page=20",
+          "host": ["{{base_url}}"],
+          "path": ["data", "history", "TEMP001"],
+          "query": [
+            {
+              "key": "per_page",
+              "value": "20"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Get Data by Date Range",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/data/range/TEMP001?start_date=2026-02-01&end_date=2026-02-25",
+          "host": ["{{base_url}}"],
+          "path": ["data", "range", "TEMP001"],
+          "query": [
+            {
+              "key": "start_date",
+              "value": "2026-02-01"
+            },
+            {
+              "key": "end_date",
+              "value": "2026-02-25"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "6. Get All Devices",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/devices",
+          "host": ["{{base_url}}"],
+          "path": ["devices"]
+        }
+      }
+    },
+    {
+      "name": "7. Get Device Statistics",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/statistics/TEMP001",
+          "host": ["{{base_url}}"],
+          "path": ["statistics", "TEMP001"]
+        }
+      }
+    },
+    {
+      "name": "8. Get Aggregate Data",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/aggregate/TEMP001?sensor=temperature&start_date=2026-02-01&end_date=2026-02-25",
+          "host": ["{{base_url}}"],
+          "path": ["aggregate", "TEMP001"],
+          "query": [
+            {
+              "key": "sensor",
+              "value": "temperature"
+            },
+            {
+              "key": "start_date",
+              "value": "2026-02-01"
+            },
+            {
+              "key": "end_date",
+              "value": "2026-02-25"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "9. Cleanup Old Data",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"days\": 30\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/data/cleanup",
+          "host": ["{{base_url}}"],
+          "path": ["data", "cleanup"]
+        }
+      }
+    },
+    {
+      "name": "Example - Environmental Sensor",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"ENV001\",\n  \"device_name\": \"Environmental Sensor\",\n  \"temperature\": 30.2,\n  \"humidity\": 70.5,\n  \"air_pressure\": 1013.25,\n  \"air_quality\": 45,\n  \"co2\": 420.5,\n  \"noise\": 55.2,\n  \"light_intensity\": 850.5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/data",
+          "host": ["{{base_url}}"],
+          "path": ["data"]
+        }
+      }
+    },
+    {
+      "name": "Example - Power Meter",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"POWER001\",\n  \"device_name\": \"Power Meter Gedung A\",\n  \"voltage\": 220.5,\n  \"current\": 15.2,\n  \"active_power\": 3350.6,\n  \"apparent_power\": 3526.8,\n  \"reactive_power\": 1005.2,\n  \"energy\": 125.5,\n  \"frequency\": 50.1,\n  \"power_factor\": 0.95,\n  \"thd\": 2.5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/data",
+          "host": ["{{base_url}}"],
+          "path": ["data"]
+        }
+      }
+    },
+    {
+      "name": "Example - Machine Monitoring",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"device_id\": \"MACHINE001\",\n  \"device_name\": \"Mesin Produksi Line 1\",\n  \"machine_status\": true,\n  \"rpm\": 1450,\n  \"vibration\": 2.5,\n  \"temperature\": 65.2,\n  \"machine_load\": 75.5,\n  \"production_counter\": 1250,\n  \"machine_runtime\": 8.5,\n  \"torque\": 150.5\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/data",
+          "host": ["{{base_url}}"],
+          "path": ["data"]
+        }
+      }
+    }
+  ]
+}
