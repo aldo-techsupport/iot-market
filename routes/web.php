@@ -43,6 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     
     // Dashboard Monitoring - per device (oleh device ID lokal)
     Route::get('dashboard/monitoring/{id}', [MemberAreaController::class, 'monitoringDevice'])->name('dashboard.monitoring.device');
+    Route::get('dashboard/monitoring/{id}/log', [MemberAreaController::class, 'monitoringLog'])->name('dashboard.monitoring.log');
     // Dashboard Monitoring - fallback ke device terbaru
     Route::get('dashboard/monitoring', [MemberAreaController::class, 'monitoring'])->name('dashboard.monitoring');
     Route::get('api/sensor-data', [MemberAreaController::class, 'getSensorData'])->name('api.sensor-data');

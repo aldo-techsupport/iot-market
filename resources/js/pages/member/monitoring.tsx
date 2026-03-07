@@ -364,6 +364,7 @@ export default function Monitoring({ device, order, sensors, latestData, statist
       const json = await res.json();
       if (json.success && json.data) {
         setRealtimeData(json.data);
+
         setSparkHistory(prev => {
           const next = { ...prev };
           sensors.forEach(s => {
@@ -499,6 +500,16 @@ export default function Monitoring({ device, order, sensors, latestData, statist
                 </div>
               )}
             </div>
+
+            <Link href={`/dashboard/monitoring/${device.id}/log`}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-slate-200 dark:border-gray-700 text-slate-700 dark:text-gray-200 bg-slate-50 dark:bg-gray-900/50 hover:bg-slate-100 dark:hover:bg-gray-800 font-medium backdrop-blur-sm transition-all"
+              >
+                Log Data
+              </Button>
+            </Link>
 
             <Button
               variant="outline"

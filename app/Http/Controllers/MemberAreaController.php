@@ -196,6 +196,34 @@ class MemberAreaController extends Controller
     }
 
     /**
+     * Show monitoring log per device (by local device ID)
+     */
+    public function monitoringLog($id)
+    {
+        // Pastikan device milik user ini
+        $device = Device::where('id', $id)
+            ->where('user_id', auth()->id())
+            ->firstOrFail();
+
+        // Ambil order yang terkait dengan device ini
+        $order = Order::with(['sensors'])
+            ->where('device_id', $device->id)
+            ->where('status', 'approved')
+            ->latest()
+            ->first();
+
+        if (!$order) {
+            return redirect()->route('dashboard')
+                ->with('error', 'Tidak ada data order untuk perangkat ini.');
+        }
+
+        return inertia('member/monitoring-log', [
+            'device'     => $device,
+            'sensors'    => $order->sensors,
+        ]);
+    }
+
+    /**
      * Show monitoring dashboard (latest device - fallback)
      */
     public function monitoring()
