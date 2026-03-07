@@ -52,6 +52,14 @@ interface Device {
     sensors_count?: number;
 }
 
+interface PendingSetupOrder {
+    id: number;
+    order_number: string;
+    package_name: string;
+    sensors_count: number;
+    created_at: string;
+}
+
 interface Stats {
     total: number;
     online: number;
@@ -69,9 +77,10 @@ interface Props {
     };
     devices?: Device[];
     stats?: Stats;
+    pendingSetupOrders?: PendingSetupOrder[];
 }
 
-export default function UserDashboard({ hasActiveOrder = false, orderInfo, devices = [], stats }: Props) {
+export default function UserDashboard({ hasActiveOrder = false, orderInfo, devices = [], stats, pendingSetupOrders = [] }: Props) {
     // --- State: Edit Modal ---
     const [editOpen, setEditOpen] = useState(false);
     const [editDevice, setEditDevice] = useState<Device | null>(null);
@@ -253,6 +262,46 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Pending Setup Orders */}
+                {pendingSetupOrders.length > 0 && (
+                    <div className="space-y-3">
+                        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Order Perlu Setup</h2>
+                        <div className="grid grid-cols-1 gap-3">
+                            {pendingSetupOrders.map((order) => (
+                                <Card
+                                    key={order.id}
+                                    className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/20 dark:to-blue-950/20 border-green-200 dark:border-green-800"
+                                >
+                                    <CardContent className="p-4">
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                                                        <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
+                                                        Approved
+                                                    </span>
+                                                    <span className="text-xs text-gray-500">{order.created_at}</span>
+                                                </div>
+                                                <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                                                    Order #{order.order_number}
+                                                </p>
+                                                <p className="text-xs text-gray-600 dark:text-gray-400">
+                                                    {order.package_name} • {order.sensors_count} sensor
+                                                </p>
+                                            </div>
+                                            <Link href={`/memberarea/device-setup?order_id=${order.id}`}>
+                                                <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white">
+                                                    Setup Device
+                                                </Button>
+                                            </Link>
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Device Cards Grid */}
                 {devices.length > 0 ? (

@@ -90,6 +90,23 @@ class MemberAreaController extends Controller
             ->whereNotNull('device_id')
             ->exists();
 
+        // Ambil order yang sudah approved tapi belum di-setup devicenya
+        $pendingSetupOrders = Order::with(['package', 'sensors'])
+            ->where('user_id', $userId)
+            ->where('status', 'approved')
+            ->whereNull('device_id')
+            ->latest()
+            ->get()
+            ->map(function ($order) {
+                return [
+                    'id'            => $order->id,
+                    'order_number'  => $order->order_number,
+                    'package_name'  => $order->package?->name,
+                    'sensors_count' => $order->sensors->count(),
+                    'created_at'    => $order->created_at->diffForHumans(),
+                ];
+            });
+
         $stats = [
             'total'   => count($devices),
             'online'  => collect($devices)->where('status', 'online')->count(),
@@ -98,9 +115,10 @@ class MemberAreaController extends Controller
         ];
 
         return inertia('user/dashboard', [
-            'devices'        => $devices,
-            'stats'          => $stats,
-            'hasActiveOrder' => $hasActiveOrder,
+            'devices'             => $devices,
+            'stats'               => $stats,
+            'hasActiveOrder'      => $hasActiveOrder,
+            'pendingSetupOrders'  => $pendingSetupOrders,
         ]);
     }
 
