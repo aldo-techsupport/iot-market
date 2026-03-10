@@ -3,6 +3,8 @@
 use App\Http\Controllers\Admin\LandingPageController;
 use App\Http\Controllers\Admin\MemberAreaEditorController;
 use App\Http\Controllers\Admin\PricingController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\Admin\DeviceController;
 use App\Http\Controllers\MemberAreaController;
 use App\Models\LandingPage;
 use App\Models\MemberAreaSetting;
@@ -86,6 +88,20 @@ Route::middleware(['auth', 'verified', 'admin'])->prefix('admin')->name('admin.'
     Route::put('pricing/{id}', [PricingController::class, 'update'])->name('pricing.update');
     Route::patch('pricing/{id}/toggle', [PricingController::class, 'toggleActive'])->name('pricing.toggle');
     Route::delete('pricing/{id}', [PricingController::class, 'destroy'])->name('pricing.destroy');
+
+    // User Management
+    Route::get('users', [UserController::class, 'index'])->name('users.index');
+    Route::get('users/{id}', [UserController::class, 'show'])->name('users.show');
+    Route::put('users/{id}', [UserController::class, 'update'])->name('users.update');
+    Route::delete('users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
+
+    // Device Management
+    Route::get('devices', [DeviceController::class, 'index'])->name('devices.index');
+    Route::get('devices/{id}', [DeviceController::class, 'show'])->name('devices.show');
+    Route::put('devices/{id}', [DeviceController::class, 'update'])->name('devices.update');
+    Route::put('devices/{id}/subscription', [DeviceController::class, 'updateSubscription'])->name('devices.subscription.update');
+    Route::put('devices/{deviceId}/sensors/{sensorId}', [DeviceController::class, 'updateSensor'])->name('devices.sensor.update');
+    Route::delete('devices/{id}', [DeviceController::class, 'destroy'])->name('devices.destroy');
 });
 
 require __DIR__.'/settings.php';

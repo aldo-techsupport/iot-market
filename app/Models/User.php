@@ -85,4 +85,20 @@ class User extends Authenticatable
             ->where('end_date', '>', now())
             ->exists();
     }
+
+    /**
+     * Get user's devices
+     */
+    public function devices()
+    {
+        return $this->hasMany(\App\Models\Device::class);
+    }
+
+    /**
+     * Get user's orders
+     */
+    public function orders()
+    {
+        return $this->hasMany(\App\Models\Order::class);
+    }
 }

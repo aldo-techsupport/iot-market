@@ -77,6 +77,29 @@ class Subscription extends Model
      */
     public function isExpired(): bool
     {
+        if ($this->status === 'expired') return true;
         return $this->end_date && $this->end_date->isPast();
+    }
+
+    /**
+     * Get days remaining until expiry (0 if already expired)
+     */
+    public function daysRemaining(): int
+    {
+        if (!$this->end_date) return 0;
+        if ($this->end_date->isPast()) return 0;
+        return (int) now()->diffInDays($this->end_date);
+    }
+
+    /**
+     * Get expiry status string for frontend
+     */
+    public function expiryStatus(): string
+    {
+        if ($this->isExpired()) return 'expired';
+        $days = $this->daysRemaining();
+        if ($days <= 7)  return 'critical';
+        if ($days <= 30) return 'warning';
+        return 'active';
     }
 }

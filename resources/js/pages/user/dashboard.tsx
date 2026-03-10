@@ -36,6 +36,8 @@ import {
     Eye,
     EyeOff,
     AlertTriangle,
+    CalendarClock,
+    ShieldAlert,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -50,6 +52,15 @@ interface Device {
     activated_at: string | null;
     last_seen?: string | null;
     sensors_count?: number;
+    subscription?: {
+        id: number;
+        status: string;
+        start_date: string | null;
+        end_date: string | null;
+        days_remaining: number;
+        expiry_status: 'active' | 'warning' | 'critical' | 'expired';
+        is_expired: boolean;
+    } | null;
 }
 
 interface PendingSetupOrder {
@@ -163,6 +174,44 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         }
+    };
+
+    // ---- Expiry badge helpers ----
+    const getExpiryBadge = (subscription: Device['subscription']) => {
+        if (!subscription) return null;
+        const { expiry_status, days_remaining, end_date, is_expired } = subscription;
+
+        if (is_expired || expiry_status === 'expired') {
+            return (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-red-400 bg-red-950/50 border border-red-800/50 px-2 py-0.5 rounded-full">
+                    <ShieldAlert className="h-3 w-3" />
+                    Expired
+                </span>
+            );
+        }
+        if (expiry_status === 'critical') {
+            return (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-orange-400 bg-orange-950/50 border border-orange-800/50 px-2 py-0.5 rounded-full">
+                    <AlertTriangle className="h-3 w-3" />
+                    {days_remaining}h tersisa
+                </span>
+            );
+        }
+        if (expiry_status === 'warning') {
+            return (
+                <span className="flex items-center gap-1.5 text-xs font-medium text-yellow-400 bg-yellow-950/40 border border-yellow-800/40 px-2 py-0.5 rounded-full">
+                    <CalendarClock className="h-3 w-3" />
+                    {days_remaining}h lagi
+                </span>
+            );
+        }
+        // active
+        return (
+            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-400 bg-emerald-950/40 border border-emerald-800/40 px-2 py-0.5 rounded-full">
+                <CalendarClock className="h-3 w-3" />
+                {days_remaining}h
+            </span>
+        );
     };
 
     // ---- Status helpers ----
@@ -313,7 +362,7 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                             >
                                 <CardHeader className="pb-3">
                                     <div className="flex items-start justify-between">
-                                        {/* Device name + status */}
+                                        {/* Device name + status + expiry */}
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center gap-2 flex-wrap">
                                                 <span className="text-sm font-bold text-gray-900 dark:text-white uppercase tracking-wide truncate">
@@ -322,6 +371,10 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                                                 {getStatusBadge(device.status)}
                                             </div>
                                             <p className="text-xs text-gray-500 mt-0.5 truncate">{device.location}</p>
+                                            {/* Expiry pill below location */}
+                                            <div className="mt-1">
+                                                {getExpiryBadge(device.subscription)}
+                                            </div>
                                         </div>
 
                                         {/* Three-dot Menu */}
@@ -340,11 +393,16 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                                                 className="w-48 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
                                             >
                                                 <DropdownMenuItem
-                                                    onClick={() => openEdit(device)}
-                                                    className="gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer"
+                                                    onClick={() => !device.subscription?.is_expired && openEdit(device)}
+                                                    disabled={device.subscription?.is_expired}
+                                                    className={`gap-2 cursor-pointer ${
+                                                        device.subscription?.is_expired
+                                                            ? 'text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed'
+                                                            : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-gray-800'
+                                                    }`}
                                                 >
                                                     <Pencil className="h-4 w-4" />
-                                                    Edit Perangkat
+                                                    {device.subscription?.is_expired ? 'Edit (Expired)' : 'Edit Perangkat'}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem
                                                     onClick={() => openApiKey(device)}
@@ -367,6 +425,17 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                                 </CardHeader>
 
                                 <CardContent className="space-y-3">
+                                    {/* Expired Warning Banner */}
+                                    {device.subscription?.is_expired && (
+                                        <div className="flex items-start gap-2 rounded-lg bg-red-950/40 border border-red-800/50 p-2.5">
+                                            <ShieldAlert className="h-4 w-4 text-red-400 flex-shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-xs font-semibold text-red-300">Subscription Expired</p>
+                                                <p className="text-[10px] text-red-400/80 mt-0.5">Perpanjang untuk dapat mengedit data perangkat</p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {/* Device Code */}
                                     <div className="flex items-center gap-2 text-xs text-gray-400">
                                         <Cpu className="h-3.5 w-3.5 text-gray-600 flex-shrink-0" />
@@ -378,6 +447,27 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                                         <div className="flex items-center gap-2 text-xs text-gray-400">
                                             <Activity className="h-3.5 w-3.5 text-gray-600 flex-shrink-0" />
                                             <span>{device.sensors_count} Sensor terpasang</span>
+                                        </div>
+                                    )}
+
+                                    {/* Subscription / Expiry info */}
+                                    {device.subscription && (
+                                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                                            <CalendarClock className="h-3.5 w-3.5 flex-shrink-0" />
+                                            {device.subscription.is_expired ? (
+                                                <span className="text-red-400">
+                                                    Expired sejak {device.subscription.end_date
+                                                        ? new Date(device.subscription.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                        : '-'}
+                                                </span>
+                                            ) : (
+                                                <span>
+                                                    Aktif hingga {device.subscription.end_date
+                                                        ? new Date(device.subscription.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                                                        : '-'}
+                                                    {' '}({device.subscription.days_remaining} hari lagi)
+                                                </span>
+                                            )}
                                         </div>
                                     )}
 

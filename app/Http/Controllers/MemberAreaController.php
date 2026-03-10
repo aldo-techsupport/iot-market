@@ -71,17 +71,36 @@ class MemberAreaController extends Controller
                 ->latest()
                 ->first()?->sensors_count ?? 0;
 
+            // Ambil subscription aktif atau terakhir
+            $subscription = Subscription::where('device_id', $device->id)
+                ->orderBy('end_date', 'desc')
+                ->first();
+
+            $subscriptionInfo = null;
+            if ($subscription) {
+                $subscriptionInfo = [
+                    'id'             => $subscription->id,
+                    'status'         => $subscription->status,
+                    'start_date'     => $subscription->start_date?->toDateString(),
+                    'end_date'       => $subscription->end_date?->toDateString(),
+                    'days_remaining' => $subscription->daysRemaining(),
+                    'expiry_status'  => $subscription->expiryStatus(),
+                    'is_expired'     => $subscription->isExpired(),
+                ];
+            }
+
             return [
-                'id'            => $device->id,
-                'name'          => $device->name,
-                'device_code'   => $device->device_code,
-                'location'      => $device->location,
-                'description'   => $device->description,
-                'status'        => $dynamicStatus,
-                'api_key'       => $device->api_key,
-                'activated_at'  => $device->activated_at?->toDateString(),
-                'last_seen'     => $lastSeen,
-                'sensors_count' => $sensorsCount,
+                'id'               => $device->id,
+                'name'             => $device->name,
+                'device_code'      => $device->device_code,
+                'location'         => $device->location,
+                'description'      => $device->description,
+                'status'           => $dynamicStatus,
+                'api_key'          => $device->api_key,
+                'activated_at'     => $device->activated_at?->toDateString(),
+                'last_seen'        => $lastSeen,
+                'sensors_count'    => $sensorsCount,
+                'subscription'     => $subscriptionInfo,
             ];
         })->toArray();
 
@@ -130,6 +149,16 @@ class MemberAreaController extends Controller
         $device = Device::where('id', $id)
             ->where('user_id', auth()->id())
             ->firstOrFail();
+
+        // Cek apakah subscription masih aktif
+        $subscription = Subscription::where('device_id', $device->id)
+            ->orderBy('end_date', 'desc')
+            ->first();
+
+        if (!$subscription || $subscription->isExpired()) {
+            return redirect()->route('dashboard')
+                ->with('error', 'Subscription Anda sudah expired. Silakan perpanjang untuk dapat mengubah data perangkat.');
+        }
 
         $validated = $request->validate([
             'name'        => 'required|string|max:255',
@@ -192,24 +221,48 @@ class MemberAreaController extends Controller
         $statistics = null;
 
         if ($device->device_code) {
-            $latestDataResponse = $this->iotService->getLatestData($device->device_code);
-            $statisticsResponse = $this->iotService->getStatistics($device->device_code);
+            // Gunakan cached method — cek subscription sebelum fetch
+            $latestDataCached = $this->iotService->getLatestDataCached($device->device_code, $device->id);
 
-            if (isset($latestDataResponse['success']) && $latestDataResponse['success']) {
-                $latestData = $latestDataResponse['data'] ?? null;
-            }
-
-            if (isset($statisticsResponse['success']) && $statisticsResponse['success']) {
-                $statistics = $statisticsResponse['data'] ?? null;
+            if ($latestDataCached !== null) {
+                if (isset($latestDataCached['success']) && $latestDataCached['success']) {
+                    $latestData = $latestDataCached['data'] ?? null;
+                }
+                // Statistics: hanya fetch jika subscription aktif (tidak dari cache)
+                if (empty($latestDataCached['_from_cache'])) {
+                    $statisticsResponse = $this->iotService->getStatistics($device->device_code);
+                    if (isset($statisticsResponse['success']) && $statisticsResponse['success']) {
+                        $statistics = $statisticsResponse['data'] ?? null;
+                    }
+                }
             }
         }
 
+        // Ambil info subscription
+        $subscription = Subscription::where('device_id', $device->id)
+            ->orderBy('end_date', 'desc')
+            ->first();
+
+        $subscriptionInfo = null;
+        if ($subscription) {
+            $subscriptionInfo = [
+                'id'             => $subscription->id,
+                'status'         => $subscription->status,
+                'start_date'     => $subscription->start_date?->toDateString(),
+                'end_date'       => $subscription->end_date?->toDateString(),
+                'days_remaining' => $subscription->daysRemaining(),
+                'expiry_status'  => $subscription->expiryStatus(),
+                'is_expired'     => $subscription->isExpired(),
+            ];
+        }
+
         return inertia('member/monitoring', [
-            'device'     => $device,
-            'order'      => $order,
-            'sensors'    => $order->sensors,
-            'latestData' => $latestData,
-            'statistics' => $statistics,
+            'device'       => $device,
+            'order'        => $order,
+            'sensors'      => $order->sensors,
+            'latestData'   => $latestData,
+            'statistics'   => $statistics,
+            'subscription' => $subscriptionInfo,
         ]);
     }
 
@@ -320,7 +373,16 @@ class MemberAreaController extends Controller
             return response()->json(['success' => false, 'message' => 'Device code not configured'], 400);
         }
 
-        $latestData = $this->iotService->getLatestData($device->device_code);
+        // Gunakan cached method — subscription check included
+        $latestData = $this->iotService->getLatestDataCached($device->device_code, $device->id);
+
+        if ($latestData === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subscription expired dan masa cache sudah berakhir. Perpanjang subscription untuk melihat data.',
+                'expired' => true,
+            ], 403);
+        }
 
         return response()->json($latestData);
     }
@@ -355,7 +417,17 @@ class MemberAreaController extends Controller
         }
 
         $perPage     = $request->input('per_page', 50);
-        $historyData = $this->iotService->getDataHistory($device->device_code, $perPage);
+
+        // Gunakan cached method — subscription check included
+        $historyData = $this->iotService->getDataHistoryCached($device->device_code, $device->id, $perPage);
+
+        if ($historyData === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Subscription expired dan masa cache sudah berakhir. Perpanjang subscription untuk melihat data.',
+                'expired' => true,
+            ], 403);
+        }
 
         return response()->json($historyData);
     }
@@ -556,14 +628,15 @@ class MemberAreaController extends Controller
         ]);
 
         // Buat subscription
+        $durationMonths = $package->duration_months ?? 1;
         $subscription = Subscription::create([
-            'user_id' => $order->user_id,
-            'device_id' => $device->id,
+            'user_id'               => $order->user_id,
+            'device_id'             => $device->id,
             'monitoring_package_id' => $order->monitoring_package_id,
-            'total_price' => $order->total_amount,
-            'status' => 'active',
-            'start_date' => now(),
-            'end_date' => now()->addMonth(),
+            'total_price'           => $order->total_amount,
+            'status'                => 'active',
+            'start_date'            => now(),
+            'end_date'              => now()->addMonths($durationMonths),
         ]);
 
         // Attach sensors ke subscription

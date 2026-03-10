@@ -11,13 +11,15 @@ class MonitoringPackage extends Model
         'description',
         'base_price',
         'max_sensors',
+        'duration_months',
         'is_active',
     ];
 
     protected $casts = [
-        'base_price' => 'decimal:2',
-        'max_sensors' => 'integer',
-        'is_active' => 'boolean',
+        'base_price'       => 'decimal:2',
+        'max_sensors'      => 'integer',
+        'duration_months'  => 'integer',
+        'is_active'        => 'boolean',
     ];
 
     /**

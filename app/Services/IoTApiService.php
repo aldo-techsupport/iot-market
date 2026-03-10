@@ -4,11 +4,24 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
+use App\Models\Subscription;
 
 class IoTApiService
 {
     protected string $baseUrl;
     protected int $timeout;
+
+    /**
+     * Cache TTL: 1 week (in seconds)
+     */
+    const CACHE_TTL = 60 * 60 * 24 * 7; // 7 days
+
+    /**
+     * Grace period after expiry: 7 days
+     * Within this window the cached data is still shown (read-only)
+     */
+    const GRACE_PERIOD_DAYS = 7;
 
     public function __construct()
     {
@@ -73,7 +86,7 @@ class IoTApiService
     }
 
     /**
-     * Get latest sensor data
+     * Get latest sensor data (raw, no cache)
      */
     public function getLatestData(string $deviceId)
     {
@@ -81,7 +94,7 @@ class IoTApiService
     }
 
     /**
-     * Get sensor data history
+     * Get sensor data history (raw, no cache)
      */
     public function getDataHistory(string $deviceId, int $perPage = 50)
     {
@@ -90,6 +103,127 @@ class IoTApiService
         ]);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  SUBSCRIPTION-AWARE CACHED METHODS
+    //  Dipanggil dari controller untuk endpoint-endpoint yang
+    //  membutuhkan pengecekan status subscription.
+    //
+    //  Aturan:
+    //   - Subscription AKTIF   → ambil fresh dari IoT API + simpan cache
+    //   - Subscription EXPIRED, ≤ 7 hari  → kembalikan cache (read-only)
+    //   - Subscription EXPIRED, > 7 hari  → hapus cache, return null
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Get latest data dengan subscription check + cache.
+     *
+     * @param  string  $deviceCode  IoT device_code
+     * @param  int     $deviceId    Local DB device ID (untuk lookup subscription)
+     */
+    public function getLatestDataCached(string $deviceCode, int $deviceId): ?array
+    {
+        $cacheKey     = "iot_latest_{$deviceCode}";
+        $subscription = $this->getDeviceSubscription($deviceId);
+
+        // Tidak ada subscription → blokir
+        if (!$subscription) {
+            return null;
+        }
+
+        if (!$subscription->isExpired()) {
+            // ── AKTIF: fetch fresh, perbarui cache ─────────────────
+            $fresh = $this->getLatestData($deviceCode);
+            if (isset($fresh['success']) && $fresh['success']) {
+                Cache::put($cacheKey, $fresh, self::CACHE_TTL);
+            }
+            return $fresh;
+        }
+
+        // ── EXPIRED ─────────────────────────────────────────────────
+        $daysSinceExpiry = (int) $subscription->end_date->diffInDays(now());
+
+        if ($daysSinceExpiry <= self::GRACE_PERIOD_DAYS) {
+            // Dalam grace period: kembalikan cache (hanya baca)
+            $cached = Cache::get($cacheKey);
+            if ($cached && is_array($cached)) {
+                $cached['_from_cache']              = true;
+                $cached['_cache_expires_in_days']   = self::GRACE_PERIOD_DAYS - $daysSinceExpiry;
+            }
+            return $cached ?? null;
+        }
+
+        // Lewat grace period: hapus cache, return null
+        Cache::forget($cacheKey);
+        Cache::forget("iot_history_{$deviceCode}");
+        return null;
+    }
+
+    /**
+     * Get sensor history dengan subscription check + cache.
+     */
+    public function getDataHistoryCached(string $deviceCode, int $deviceId, int $perPage = 50): ?array
+    {
+        $cacheKey     = "iot_history_{$deviceCode}";
+        $subscription = $this->getDeviceSubscription($deviceId);
+
+        if (!$subscription) {
+            return null;
+        }
+
+        if (!$subscription->isExpired()) {
+            $fresh = $this->getDataHistory($deviceCode, $perPage);
+            if (isset($fresh['success']) && $fresh['success']) {
+                Cache::put($cacheKey, $fresh, self::CACHE_TTL);
+            }
+            return $fresh;
+        }
+
+        $daysSinceExpiry = (int) $subscription->end_date->diffInDays(now());
+
+        if ($daysSinceExpiry <= self::GRACE_PERIOD_DAYS) {
+            $cached = Cache::get($cacheKey);
+            if ($cached && is_array($cached)) {
+                $cached['_from_cache']              = true;
+                $cached['_cache_expires_in_days']   = self::GRACE_PERIOD_DAYS - $daysSinceExpiry;
+            }
+            return $cached ?? null;
+        }
+
+        Cache::forget($cacheKey);
+        Cache::forget("iot_latest_{$deviceCode}");
+        return null;
+    }
+
+    /**
+     * Hapus semua cache untuk device ini.
+     * Dipanggil saat subscription diperbarui/diperpanjang oleh admin.
+     */
+    public function clearDeviceCache(string $deviceCode): void
+    {
+        Cache::forget("iot_latest_{$deviceCode}");
+        Cache::forget("iot_history_{$deviceCode}");
+        Log::info("IoT cache cleared for device: {$deviceCode}");
+    }
+
+    /**
+     * Pre-warm cache untuk device (simpan data fresh ke cache).
+     * Opsional, bisa dipanggil saat device setup selesai.
+     */
+    public function warmCache(string $deviceCode): void
+    {
+        $latest  = $this->getLatestData($deviceCode);
+        $history = $this->getDataHistory($deviceCode);
+
+        if (isset($latest['success']) && $latest['success']) {
+            Cache::put("iot_latest_{$deviceCode}", $latest, self::CACHE_TTL);
+        }
+        if (isset($history['success']) && $history['success']) {
+            Cache::put("iot_history_{$deviceCode}", $history, self::CACHE_TTL);
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+
     /**
      * Get sensor data by date range
      */
@@ -97,7 +231,7 @@ class IoTApiService
     {
         return $this->get("/api/iot/data/range/{$deviceId}", [
             'start_date' => $startDate,
-            'end_date' => $endDate,
+            'end_date'   => $endDate,
         ]);
     }
 
@@ -115,11 +249,11 @@ class IoTApiService
     public function getAggregate(string $deviceId, string $variable, ?string $startDate = null, ?string $endDate = null)
     {
         $params = ['variable' => $variable];
-        
+
         if ($startDate) {
             $params['start_date'] = $startDate;
         }
-        
+
         if ($endDate) {
             $params['end_date'] = $endDate;
         }
@@ -133,8 +267,6 @@ class IoTApiService
      */
     public function getAggregateBySensor(string $deviceId, string $sensor, ?string $startDate = null, ?string $endDate = null)
     {
-        // Map sensor name to variable if needed
-        // This is for backward compatibility only
         return $this->getAggregate($deviceId, $sensor, $startDate, $endDate);
     }
 
@@ -154,6 +286,20 @@ class IoTApiService
         return $this->post('/api/iot/data/batch', ['data' => $data]);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    //  PRIVATE HELPERS
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Ambil subscription terbaru (berdasarkan end_date) untuk device
+     */
+    private function getDeviceSubscription(int $deviceId): ?Subscription
+    {
+        return Subscription::where('device_id', $deviceId)
+            ->orderBy('end_date', 'desc')
+            ->first();
+    }
+
     /**
      * GET request
      */
@@ -170,13 +316,13 @@ class IoTApiService
         } catch (\Exception $e) {
             Log::error('IoT API GET Error: ' . $e->getMessage(), [
                 'endpoint' => $endpoint,
-                'params' => $params,
+                'params'   => $params,
             ]);
 
             return [
                 'success' => false,
                 'message' => 'Failed to connect to IoT API',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ];
         }
     }
@@ -189,7 +335,7 @@ class IoTApiService
         try {
             $response = Http::timeout($this->timeout)
                 ->withHeaders([
-                    'Accept' => 'application/json',
+                    'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
                 ])
                 ->post($this->baseUrl . $endpoint, $data);
@@ -198,13 +344,13 @@ class IoTApiService
         } catch (\Exception $e) {
             Log::error('IoT API POST Error: ' . $e->getMessage(), [
                 'endpoint' => $endpoint,
-                'data' => $data,
+                'data'     => $data,
             ]);
 
             return [
                 'success' => false,
                 'message' => 'Failed to connect to IoT API',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ];
         }
     }
@@ -217,7 +363,7 @@ class IoTApiService
         try {
             $response = Http::timeout($this->timeout)
                 ->withHeaders([
-                    'Accept' => 'application/json',
+                    'Accept'       => 'application/json',
                     'Content-Type' => 'application/json',
                 ])
                 ->put($this->baseUrl . $endpoint, $data);
@@ -226,13 +372,13 @@ class IoTApiService
         } catch (\Exception $e) {
             Log::error('IoT API PUT Error: ' . $e->getMessage(), [
                 'endpoint' => $endpoint,
-                'data' => $data,
+                'data'     => $data,
             ]);
 
             return [
                 'success' => false,
                 'message' => 'Failed to connect to IoT API',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ];
         }
     }
@@ -258,7 +404,7 @@ class IoTApiService
             return [
                 'success' => false,
                 'message' => 'Failed to connect to IoT API',
-                'error' => $e->getMessage(),
+                'error'   => $e->getMessage(),
             ];
         }
     }
@@ -269,11 +415,10 @@ class IoTApiService
     protected function handleResponse($response)
     {
         if ($response->successful()) {
-            // Check if response is JSON
             $contentType = $response->header('Content-Type');
             if (strpos($contentType, 'application/json') === false) {
                 Log::error('IoT API returned non-JSON response', [
-                    'status' => $response->status(),
+                    'status'       => $response->status(),
                     'content_type' => $contentType,
                     'body_preview' => substr($response->body(), 0, 200),
                 ]);
@@ -281,18 +426,17 @@ class IoTApiService
                 return [
                     'success' => false,
                     'message' => 'IoT API server tidak dikonfigurasi dengan benar. Server mengembalikan HTML alih-alih JSON. Silakan hubungi administrator untuk deploy IoT API server.',
-                    'error' => 'Server returned HTML instead of JSON',
+                    'error'   => 'Server returned HTML instead of JSON',
                 ];
             }
 
             return $response->json();
         }
 
-        // Check if error response is HTML
         $contentType = $response->header('Content-Type');
         if (strpos($contentType, 'text/html') !== false) {
             Log::error('IoT API returned HTML error page', [
-                'status' => $response->status(),
+                'status'       => $response->status(),
                 'content_type' => $contentType,
                 'body_preview' => substr($response->body(), 0, 200),
             ]);
@@ -300,21 +444,21 @@ class IoTApiService
             return [
                 'success' => false,
                 'message' => 'IoT API server tidak tersedia atau belum dikonfigurasi. Silakan hubungi administrator.',
-                'error' => 'Server returned HTML error page',
-                'status' => $response->status(),
+                'error'   => 'Server returned HTML error page',
+                'status'  => $response->status(),
             ];
         }
 
         Log::error('IoT API Error Response', [
             'status' => $response->status(),
-            'body' => $response->body(),
+            'body'   => $response->body(),
         ]);
 
         return [
             'success' => false,
             'message' => 'API request failed',
-            'status' => $response->status(),
-            'error' => $response->body(),
+            'status'  => $response->status(),
+            'error'   => $response->body(),
         ];
     }
 }

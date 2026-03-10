@@ -18,7 +18,7 @@ import {
   RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertCircle, CheckCircle2, Clock, MapPin, Cpu,
   ArrowLeft, WifiOff, BarChart2, AreaChart, LineChartIcon,
-  Palette,
+  Palette, CalendarClock, ShieldAlert,
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════
@@ -71,6 +71,15 @@ interface Props {
   sensors: Sensor[];
   latestData: SensorData | null;
   statistics: Statistics | null;
+  subscription?: {
+    id: number;
+    status: string;
+    start_date: string | null;
+    end_date: string | null;
+    days_remaining: number;
+    expiry_status: 'active' | 'warning' | 'critical' | 'expired';
+    is_expired: boolean;
+  } | null;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -316,7 +325,7 @@ function SparkCard({
 /* ═══════════════════════════════════════════════════
    Main Component
 ══════════════════════════════════════════════════════ */
-export default function Monitoring({ device, order, sensors, latestData, statistics }: Props) {
+export default function Monitoring({ device, order, sensors, latestData, statistics, subscription }: Props) {
   /* ── State ── */
   const [realtimeData, setRealtimeData] = useState<SensorData | null>(latestData);
   const [sparkHistory, setSparkHistory] = useState<Record<string, number[]>>({});
@@ -551,6 +560,27 @@ export default function Monitoring({ device, order, sensors, latestData, statist
                   <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-2 text-xs font-medium text-slate-500 dark:text-gray-400">
                     <span className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" />{device.location}</span>
                     <span className="flex items-center gap-1.5"><Cpu className="h-3.5 w-3.5" /><span className="font-mono bg-slate-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-slate-600 dark:text-gray-300">{device.device_code}</span></span>
+                    {/* Masa Aktif */}
+                    {subscription && (
+                      <span className={`flex items-center gap-1.5 font-semibold ${
+                        subscription.is_expired
+                          ? 'text-red-500 dark:text-red-400'
+                          : subscription.expiry_status === 'critical'
+                          ? 'text-orange-500 dark:text-orange-400'
+                          : subscription.expiry_status === 'warning'
+                          ? 'text-yellow-600 dark:text-yellow-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}>
+                        {subscription.is_expired
+                          ? <ShieldAlert className="h-3.5 w-3.5" />
+                          : <CalendarClock className="h-3.5 w-3.5" />}
+                        {subscription.is_expired
+                          ? 'Expired'
+                          : `Aktif hingga ${subscription.end_date
+                              ? new Date(subscription.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+                              : '-'} (${subscription.days_remaining} hari)`}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -560,6 +590,20 @@ export default function Monitoring({ device, order, sensors, latestData, statist
               </div>
             </div>
           </CardHeader>
+          {/* Expired banner inside card */}
+          {subscription?.is_expired && (
+            <div className="flex items-start gap-3 px-5 py-3.5 bg-red-950/40 border-b border-red-800/40">
+              <ShieldAlert className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-bold text-red-300">Subscription Anda Sudah Expired</p>
+                <p className="text-xs text-red-400/80 mt-0.5">
+                  Masa aktif berakhir pada {subscription.end_date
+                    ? new Date(subscription.end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+                    : '-'}. Data monitoring masih dapat dilihat, namun Anda tidak dapat mengedit perangkat. Silakan perpanjang subscription Anda.
+                </p>
+              </div>
+            </div>
+          )}
           <CardContent className="pt-5 pb-5 bg-slate-50/50 dark:bg-gray-900/50">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="rounded-xl bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-800 px-5 py-4 shadow-sm">

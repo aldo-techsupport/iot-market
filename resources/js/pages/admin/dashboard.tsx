@@ -228,10 +228,17 @@ export default function AdminDashboard({ stats, recentOrders, recentUsers }: Pro
                             </Link>
                             <Link
                                 href="/admin/users"
-                                className="flex flex-col items-center justify-center p-6 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                className="flex flex-col items-center justify-center p-6 border rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 border-blue-200 dark:border-blue-800 transition"
                             >
                                 <span className="text-4xl mb-2">👥</span>
-                                <span className="text-sm font-medium">Manage Users</span>
+                                <span className="text-sm font-medium text-blue-600 dark:text-blue-400">Kelola Users</span>
+                            </Link>
+                            <Link
+                                href="/admin/devices"
+                                className="flex flex-col items-center justify-center p-6 border rounded-lg hover:bg-green-50 dark:hover:bg-green-900/20 border-green-200 dark:border-green-800 transition"
+                            >
+                                <span className="text-4xl mb-2">📡</span>
+                                <span className="text-sm font-medium text-green-600 dark:text-green-400">Kelola Devices</span>
                             </Link>
                             <Link
                                 href="/admin/landing-page"

@@ -9,6 +9,7 @@ interface MonitoringPackage {
     description: string;
     base_price: number;
     max_sensors: number;
+    duration_months: number;
 }
 
 interface Props {
@@ -100,6 +101,12 @@ export default function Checkout({ package: pkg }: Props) {
                                                 <span className="text-sm">{pkg.max_sensors} Grafik/device</span>
                                             </div>
                                             <div className="flex items-center gap-2">
+                                                <span className="text-blue-600">⏱</span>
+                                                <span className="text-sm font-medium">
+                                                    Masa Aktif: <strong>{pkg.duration_months} bulan</strong>
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
                                                 <span className={pkg.base_price > 0 ? 'text-green-600' : 'text-red-600'}>
                                                     {pkg.base_price > 0 ? '✓' : '✕'}
                                                 </span>
@@ -116,11 +123,12 @@ export default function Checkout({ package: pkg }: Props) {
                                                     {pkg.base_price === 0 ? 'Gratis' : `Rp${(pkg.base_price / 1000).toFixed(0)}K`}
                                                 </span>
                                             </div>
-                                            {pkg.base_price > 0 && (
-                                                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                                    per bulan
-                                                </p>
-                                            )}
+                                            <div className="mt-2 flex items-center justify-between text-sm text-gray-600 dark:text-gray-400">
+                                                <span>untuk masa aktif</span>
+                                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                                    {pkg.duration_months} bulan
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                 </CardContent>

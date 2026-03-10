@@ -136,7 +136,7 @@ export default function MemberArea({ user, packages = [], settings = {} }: Props
                                 <span className="font-medium">Paket</span>
                             </a>
                             <Link
-                                href="/memberarea/devices"
+                                href="/dashboard"
                                 className="flex items-center gap-3 px-4 py-3 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition"
                             >
                                 <span className="text-xl">🔧</span>
