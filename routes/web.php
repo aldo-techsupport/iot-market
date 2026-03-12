@@ -54,7 +54,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Device management (Kelola Perangkat)
     Route::put('dashboard/devices/{id}', [MemberAreaController::class, 'updateDevice'])->name('dashboard.device.update');
     Route::delete('dashboard/devices/{id}', [MemberAreaController::class, 'deleteDevice'])->name('dashboard.device.delete');
-    
+
+    // API Key Management (OTP-protected)
+    Route::post('dashboard/devices/{id}/request-otp', [MemberAreaController::class, 'requestApiKeyOtp'])->name('dashboard.device.request-otp');
+    Route::post('dashboard/devices/{id}/verify-otp', [MemberAreaController::class, 'verifyApiKeyOtp'])->name('dashboard.device.verify-otp');
+    Route::post('dashboard/devices/{id}/regenerate-key', [MemberAreaController::class, 'regenerateApiKey'])->name('dashboard.device.regenerate-key');
+
+    // Device Sharing Management
+    Route::get('dashboard/devices/{id}/manage-sharing', [\App\Http\Controllers\DeviceShareController::class, 'managePage'])->name('dashboard.device.share.manage');
+    Route::post('dashboard/devices/{id}/invite', [\App\Http\Controllers\DeviceShareController::class, 'inviteUser'])->name('dashboard.device.invite');
+    Route::post('devices/share/accept', [\App\Http\Controllers\DeviceShareController::class, 'acceptInvite'])->name('dashboard.device.accept-invite');
+    Route::delete('devices/{id}/share/remove', [\App\Http\Controllers\DeviceShareController::class, 'removeShare'])->name('dashboard.device.share.remove');
+    Route::post('notifications/{id}/mark-read', [\App\Http\Controllers\DeviceShareController::class, 'markNotificationRead'])->name('notifications.mark-read');
+    Route::delete('notifications/clear-all', [\App\Http\Controllers\DeviceShareController::class, 'clearAllNotifications'])->name('notifications.clear-all');
+
     // User Dashboard - show dashboard with device list
     Route::get('dashboard', [MemberAreaController::class, 'userDashboard'])->name('dashboard');
 });

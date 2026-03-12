@@ -9,9 +9,12 @@ use App\Models\Sensor;
 use App\Models\Device;
 use App\Models\Subscription;
 use App\Models\SubscriptionSensor;
+use App\Models\ApiKeyOtp;
+use App\Mail\ApiKeyOtpMail;
 use App\Services\IoTApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Carbon\Carbon;
 
 class MemberAreaController extends Controller
@@ -30,8 +33,15 @@ class MemberAreaController extends Controller
     {
         $userId = auth()->id();
 
-        // Ambil semua device milik user
-        $dbDevices = Device::where('user_id', $userId)
+        // Ambil semua device milik user DAN device yang di-share kepadanya
+        $dbDevices = Device::with(['shares.user' => function ($query) {
+                // optional: only accepted shares
+                $query->select('id', 'name', 'email');
+            }])
+            ->where('user_id', $userId)
+            ->orWhereHas('shares', function ($q) use ($userId) {
+                $q->where('user_id', $userId)->where('status', 'accepted');
+            })
             ->latest()
             ->get();
 
@@ -101,6 +111,8 @@ class MemberAreaController extends Controller
                 'last_seen'        => $lastSeen,
                 'sensors_count'    => $sensorsCount,
                 'subscription'     => $subscriptionInfo,
+                'is_owner'         => $device->user_id === auth()->id(),
+                'is_shared'        => $device->user_id !== auth()->id(),
             ];
         })->toArray();
 
@@ -195,15 +207,22 @@ class MemberAreaController extends Controller
             ->with('success', 'Perangkat berhasil dihapus!');
     }
 
-    /**
-     * Show monitoring per device (by local device ID)
-     */
     public function monitoringDevice($id)
     {
-        // Pastikan device milik user ini
+        $userId = auth()->id();
+
+        // Cari tahu apakah user ini adalah owner ATAU telah di-share
         $device = Device::where('id', $id)
-            ->where('user_id', auth()->id())
+            ->where(function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                      ->orWhereHas('shares', function ($q) use ($userId) {
+                          $q->where('user_id', $userId)->where('status', 'accepted');
+                      });
+            })
             ->firstOrFail();
+
+        // Cek apakah user adalah shared user
+        $isSharedUser = $device->user_id !== $userId;
 
         // Ambil order yang terkait dengan device ini
         $order = Order::with(['sensors'])
@@ -263,6 +282,7 @@ class MemberAreaController extends Controller
             'latestData'   => $latestData,
             'statistics'   => $statistics,
             'subscription' => $subscriptionInfo,
+            'is_shared'    => $isSharedUser,
         ]);
     }
 
@@ -271,9 +291,16 @@ class MemberAreaController extends Controller
      */
     public function monitoringLog($id)
     {
-        // Pastikan device milik user ini
+        $userId = auth()->id();
+
+        // Pastikan device milik user ini ATAU di-share ke user ini
         $device = Device::where('id', $id)
-            ->where('user_id', auth()->id())
+            ->where(function ($query) use ($userId) {
+                $query->where('user_id', $userId)
+                      ->orWhereHas('shares', function ($q) use ($userId) {
+                          $q->where('user_id', $userId)->where('status', 'accepted');
+                      });
+            })
             ->firstOrFail();
 
         // Ambil order yang terkait dengan device ini
@@ -350,9 +377,14 @@ class MemberAreaController extends Controller
         $deviceId = $request->input('device_id'); // local DB device ID
 
         if ($deviceId) {
-            // Per-device fetch: hanya milik user ini
+            // Per-device fetch: milik user ini ATAU di-share ke user ini
             $device = Device::where('id', $deviceId)
-                ->where('user_id', $userId)
+                ->where(function ($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                          ->orWhereHas('shares', function ($q) use ($userId) {
+                              $q->where('user_id', $userId)->where('status', 'accepted');
+                          });
+                })
                 ->first();
         } else {
             // Fallback: device dari order approved terbaru
@@ -397,7 +429,15 @@ class MemberAreaController extends Controller
         $deviceId = $request->input('device_id');
 
         if ($deviceId) {
-            $device = Device::where('id', $deviceId)->where('user_id', $userId)->first();
+            // Cek apakah device milik user ini ATAU di-share ke user ini
+            $device = Device::where('id', $deviceId)
+                ->where(function ($query) use ($userId) {
+                    $query->where('user_id', $userId)
+                          ->orWhereHas('shares', function ($q) use ($userId) {
+                              $q->where('user_id', $userId)->where('status', 'accepted');
+                          });
+                })
+                ->first();
         } else {
             $order  = Order::with(['device'])
                 ->where('user_id', $userId)
@@ -721,6 +761,174 @@ class MemberAreaController extends Controller
 
         return inertia('member/orders', [
             'orders' => $orders,
+        ]);
+    }
+
+    // ═══════════════════════════════════════════════════
+    //  API KEY OTP
+    // ═══════════════════════════════════════════════════
+
+    /**
+     * Generate OTP dan kirim ke email user
+     * POST /dashboard/devices/{id}/request-otp
+     */
+    public function requestApiKeyOtp($id)
+    {
+        $user   = auth()->user();
+        $device = Device::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        // Hapus OTP lama untuk device ini
+        ApiKeyOtp::where('user_id', $user->id)
+            ->where('device_id', $device->id)
+            ->delete();
+
+        // Buat OTP baru: 6 digit angka
+        $otpCode = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+
+        ApiKeyOtp::create([
+            'user_id'   => $user->id,
+            'device_id' => $device->id,
+            'otp_code'  => $otpCode,
+            'expires_at' => now()->addMinutes(5),
+        ]);
+
+        // Kirim email
+        Mail::to($user->email)->send(
+            new ApiKeyOtpMail($otpCode, $device, $user->name)
+        );
+
+        Log::info('API Key OTP sent', [
+            'user_id'   => $user->id,
+            'device_id' => $device->id,
+            'email'     => $user->email,
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kode OTP telah dikirim ke ' . $user->email,
+            'email'   => substr($user->email, 0, 3) . '***@' . explode('@', $user->email)[1],
+        ]);
+    }
+
+    /**
+     * Verifikasi OTP dan return API key yang tersimpan
+     * POST /dashboard/devices/{id}/verify-otp
+     */
+    public function verifyApiKeyOtp(Request $request, $id)
+    {
+        $request->validate([
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        $user   = auth()->user();
+        $device = Device::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $otp = ApiKeyOtp::where('user_id', $user->id)
+            ->where('device_id', $device->id)
+            ->where('otp_code', $request->otp_code)
+            ->whereNull('used_at')
+            ->first();
+
+        if (!$otp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode OTP tidak valid.',
+            ], 422);
+        }
+
+        if ($otp->expires_at->isPast()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode OTP sudah kedaluwarsa. Minta kode baru.',
+            ], 422);
+        }
+
+        // Tandai OTP sudah dipakai
+        $otp->markUsed();
+
+        return response()->json([
+            'success' => true,
+            'api_key' => $device->api_key,
+            'device'  => [
+                'id'          => $device->id,
+                'name'        => $device->name,
+                'device_code' => $device->device_code,
+            ],
+        ]);
+    }
+
+    /**
+     * Verifikasi OTP kemudian regenerate API key dari IoT API
+     * POST /dashboard/devices/{id}/regenerate-key
+     */
+    public function regenerateApiKey(Request $request, $id)
+    {
+        $request->validate([
+            'otp_code' => 'required|string|size:6',
+        ]);
+
+        $user   = auth()->user();
+        $device = Device::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $otp = ApiKeyOtp::where('user_id', $user->id)
+            ->where('device_id', $device->id)
+            ->where('otp_code', $request->otp_code)
+            ->whereNull('used_at')
+            ->first();
+
+        if (!$otp) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode OTP tidak valid.',
+            ], 422);
+        }
+
+        if ($otp->expires_at->isPast()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kode OTP sudah kedaluwarsa. Minta kode baru.',
+            ], 422);
+        }
+
+        // Tandai OTP sudah dipakai
+        $otp->markUsed();
+
+        // Panggil IoT API untuk regenerate key
+        $response = $this->iotService->regenerateApiKey((int) $device->id);
+
+        if (!isset($response['success']) || !$response['success']) {
+            Log::error('Regenerate API Key failed from IoT API', [
+                'device_id' => $device->id,
+                'response'  => $response,
+            ]);
+
+            // Fallback: generate key lokal jika IoT API gagal
+            $newKey = 'KEY-' . strtoupper(\Illuminate\Support\Str::random(32));
+            $device->update(['api_key' => $newKey]);
+
+            return response()->json([
+                'success' => true,
+                'api_key' => $newKey,
+                'note'    => 'Key diperbarui secara lokal (IoT API tidak tersedia).',
+            ]);
+        }
+
+        // Simpan key baru ke DB lokal
+        $newKey = $response['data']['api_key'] ?? $response['api_key'] ?? null;
+
+        if ($newKey) {
+            $device->update(['api_key' => $newKey]);
+        }
+
+        return response()->json([
+            'success' => true,
+            'api_key' => $newKey ?? $device->fresh()->api_key,
         ]);
     }
 }

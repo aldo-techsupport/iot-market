@@ -23,6 +23,7 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'unique_id',
     ];
 
     /**
@@ -100,5 +101,30 @@ class User extends Authenticatable
     public function orders()
     {
         return $this->hasMany(\App\Models\Order::class);
+    }
+    /**
+     * Boot function from Laravel.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($model) {
+            if (empty($model->unique_id)) {
+                $model->unique_id = static::generateUniqueId();
+            }
+        });
+    }
+
+    /**
+     * Generate a 9-digit unique ID.
+     */
+    public static function generateUniqueId()
+    {
+        do {
+            $uniqueId = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
+        } while (static::where('unique_id', $uniqueId)->exists());
+
+        return $uniqueId;
     }
 }

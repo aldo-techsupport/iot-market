@@ -47,4 +47,12 @@ class Device extends Model
             ->where('end_date', '>', now())
             ->latest();
     }
+
+    /**
+     * Get shares for this device
+     */
+    public function shares()
+    {
+        return $this->hasMany(DeviceShare::class);
+    }
 }

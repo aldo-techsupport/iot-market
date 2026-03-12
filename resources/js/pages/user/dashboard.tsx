@@ -22,22 +22,31 @@ import {
 } from '@/components/ui/dialog';
 import {
     Activity,
-    MoreVertical,
-    Pencil,
-    Trash2,
-    Key,
-    RefreshCw,
-    Cpu,
-    Wifi,
-    WifiOff,
+    AlertTriangle,
+    AlignLeft,
+    Bell,
+    CalendarClock,
+    Check,
     Clock,
     Copy,
-    Check,
+    Cpu,
     Eye,
     EyeOff,
-    AlertTriangle,
-    CalendarClock,
+    Key,
+    LogOut,
+    MapPin,
+    MoreVertical,
+    Pencil,
+    Plus,
+    RefreshCw,
+    Save,
+    Search,
     ShieldAlert,
+    Trash2,
+    Users,
+    Wifi,
+    WifiOff,
+    X,
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -141,6 +150,18 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
         );
     };
 
+    // ---- Handlers: Share ----
+    const [removingShareId, setRemovingShareId] = useState<number | null>(null);
+
+    const handleRemoveShare = (shareId: number, e: React.MouseEvent) => {
+        e.preventDefault();
+        setRemovingShareId(shareId);
+        router.delete(`/devices/${shareId}/share/remove`, {
+            preserveScroll: true,
+            onFinish: () => setRemovingShareId(null),
+        });
+    };
+
     // ---- Handlers: Delete ----
     const openDelete = (device: Device) => {
         setDeleteDevice(device);
@@ -151,13 +172,23 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
     const handleDelete = () => {
         if (!deleteDevice) return;
         setDeleteLoading(true);
-        router.delete(`/dashboard/devices/${deleteDevice.id}`, {
-            preserveScroll: true,
-            onFinish: () => {
-                setDeleteLoading(false);
-                setDeleteOpen(false);
-            },
-        });
+        if (deleteDevice.is_shared) {
+            router.delete(`/devices/${deleteDevice.id}/share/remove`, {
+                preserveScroll: true,
+                onFinish: () => {
+                    setDeleteLoading(false);
+                    setDeleteOpen(false);
+                },
+            });
+        } else {
+            router.delete(`/dashboard/devices/${deleteDevice.id}`, {
+                preserveScroll: true,
+                onFinish: () => {
+                    setDeleteLoading(false);
+                    setDeleteOpen(false);
+                },
+            });
+        }
     };
 
     // ---- Handlers: API Key ----
@@ -392,33 +423,57 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                                                 align="end"
                                                 className="w-48 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700"
                                             >
-                                                <DropdownMenuItem
-                                                    onClick={() => !device.subscription?.is_expired && openEdit(device)}
-                                                    disabled={device.subscription?.is_expired}
-                                                    className={`gap-2 cursor-pointer ${
-                                                        device.subscription?.is_expired
-                                                            ? 'text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed'
-                                                            : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-gray-800'
-                                                    }`}
-                                                >
-                                                    <Pencil className="h-4 w-4" />
-                                                    {device.subscription?.is_expired ? 'Edit (Expired)' : 'Edit Perangkat'}
-                                                </DropdownMenuItem>
-                                                <DropdownMenuItem
-                                                    onClick={() => openApiKey(device)}
-                                                    className="gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer"
-                                                >
-                                                    <Key className="h-4 w-4" />
-                                                    Lihat API Key
-                                                </DropdownMenuItem>
+                                                {!device.is_shared && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => !device.subscription?.is_expired && openEdit(device)}
+                                                        disabled={device.subscription?.is_expired}
+                                                        className={`gap-2 cursor-pointer ${
+                                                            device.subscription?.is_expired
+                                                                ? 'text-gray-400 dark:text-gray-600 opacity-50 cursor-not-allowed'
+                                                                : 'text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-gray-800'
+                                                        }`}
+                                                    >
+                                                        <Pencil className="h-4 w-4" />
+                                                        {device.subscription?.is_expired ? 'Edit (Expired)' : 'Edit Perangkat'}
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {!device.is_shared && (
+                                                    <DropdownMenuItem
+                                                        onClick={() => openApiKey(device)}
+                                                        className="gap-2 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white focus:text-gray-900 dark:focus:text-white focus:bg-gray-100 dark:focus:bg-gray-800 cursor-pointer"
+                                                    >
+                                                        <Key className="h-4 w-4" />
+                                                        Lihat API Key
+                                                    </DropdownMenuItem>
+                                                )}
                                                 <DropdownMenuSeparator className="bg-gray-200 dark:bg-gray-700" />
-                                                <DropdownMenuItem
-                                                    onClick={() => openDelete(device)}
-                                                    className="gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:text-red-700 dark:focus:text-red-300 focus:bg-red-50 dark:focus:bg-red-950 cursor-pointer"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                    Hapus Perangkat
-                                                </DropdownMenuItem>
+                                                
+                                                {device.is_shared ? (
+                                                    <DropdownMenuItem
+                                                        onClick={() => openDelete(device)}
+                                                        className="gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:text-red-700 dark:focus:text-red-300 focus:bg-red-50 dark:focus:bg-red-950 cursor-pointer"
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                        Hapus Sharing
+                                                    </DropdownMenuItem>
+                                                ) : (
+                                                    <>
+                                                        <DropdownMenuItem
+                                                            onClick={() => router.get(`/dashboard/devices/${device.id}/manage-sharing`)}
+                                                            className="gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 focus:text-blue-700 dark:focus:text-blue-300 focus:bg-blue-50 dark:focus:bg-blue-900/30 cursor-pointer"
+                                                        >
+                                                            <Users className="h-4 w-4" />
+                                                            Kelola Sharing
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => openDelete(device)}
+                                                            className="gap-2 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 focus:text-red-700 dark:focus:text-red-300 focus:bg-red-50 dark:focus:bg-red-950 cursor-pointer"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                            Hapus Perangkat
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
@@ -629,10 +684,12 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-red-400">
                             <AlertTriangle className="h-5 w-5" />
-                            Hapus Perangkat
+                            {deleteDevice?.is_shared ? 'Hapus Sharing Perangkat' : 'Hapus Perangkat'}
                         </DialogTitle>
                         <DialogDescription className="text-gray-400">
-                            Tindakan ini tidak dapat dibatalkan. Seluruh data perangkat dan riwayat sensor akan dihapus permanen.
+                            {deleteDevice?.is_shared 
+                                ? 'Apakah Anda yakin ingin menghapus perangkat ini dari akun Anda? Anda bisa meminta owner untuk invite ulang nanti.'
+                                : 'Tindakan ini tidak dapat dibatalkan. Seluruh data perangkat dan riwayat sensor akan dihapus permanen.'}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -676,7 +733,7 @@ export default function UserDashboard({ hasActiveOrder = false, orderInfo, devic
                             ) : (
                                 <Trash2 className="h-4 w-4 mr-2" />
                             )}
-                            Hapus Perangkat
+                            {deleteDevice?.is_shared ? 'Hapus Sharing' : 'Hapus Perangkat'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

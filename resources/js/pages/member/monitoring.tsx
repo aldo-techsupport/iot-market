@@ -1,4 +1,4 @@
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import MonitoringLayout from '@/layouts/monitoring-layout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,7 +18,7 @@ import {
   RefreshCw, TrendingUp, TrendingDown, Minus,
   AlertCircle, CheckCircle2, Clock, MapPin, Cpu,
   ArrowLeft, WifiOff, BarChart2, AreaChart, LineChartIcon,
-  Palette, CalendarClock, ShieldAlert,
+  Palette, CalendarClock, ShieldAlert, Key, Copy, Check, Eye, EyeOff, RotateCcw, Mail, UserPlus
 } from 'lucide-react';
 
 /* ═══════════════════════════════════════════════════
@@ -38,6 +38,7 @@ interface Device {
   id: number;
   name: string;
   device_code: string;
+  api_key?: string;
   location: string;
   description: string | null;
   status: string;
@@ -80,6 +81,7 @@ interface Props {
     expiry_status: 'active' | 'warning' | 'critical' | 'expired';
     is_expired: boolean;
   } | null;
+  is_shared?: boolean;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -97,8 +99,14 @@ const CHART_THEMES = {
 type ThemeKey = keyof typeof CHART_THEMES;
 
 /* ═══════════════════════════════════════════════════
-   Helpers
+   CSRF Helper — baca dari cookie XSRF-TOKEN
+   (lebih andal daripada meta-tag yang tidak selalu ada)
 ══════════════════════════════════════════════════════ */
+function getCsrfToken(): string {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : '';
+}
+
 const getSensorIcon = (name: string) => {
   const n = name.toLowerCase();
   if (n.includes('temp') || n.includes('suhu')) return Thermometer;
@@ -325,7 +333,7 @@ function SparkCard({
 /* ═══════════════════════════════════════════════════
    Main Component
 ══════════════════════════════════════════════════════ */
-export default function Monitoring({ device, order, sensors, latestData, statistics, subscription }: Props) {
+export default function Monitoring({ device, order, sensors, latestData, statistics, subscription, is_shared = false }: Props) {
   /* ── State ── */
   const [realtimeData, setRealtimeData] = useState<SensorData | null>(latestData);
   const [sparkHistory, setSparkHistory] = useState<Record<string, number[]>>({});
@@ -340,6 +348,168 @@ export default function Monitoring({ device, order, sensors, latestData, statist
   const [chartType, setChartType] = useState<'line' | 'area' | 'bar'>('area');
   const [historyRange, setHistoryRange] = useState<20 | 50 | 100>(50);
   const [showThemePicker, setShowThemePicker] = useState(false);
+
+  // ── API Key OTP state ────────────────────────────────────
+  const [apiKeyModal, setApiKeyModal] = useState<'closed' | 'otp' | 'revealed'>('closed');
+  const [otpSending, setOtpSending]    = useState(false);
+  const [otpEmail, setOtpEmail]        = useState('');
+  const [otpCode, setOtpCode]          = useState('');
+  const [otpError, setOtpError]        = useState('');
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  const [revealedKey, setRevealedKey]  = useState('');
+  const [keyCopied, setKeyCopied]      = useState(false);
+  const [showKey, setShowKey]          = useState(false);
+  const [otpCountdown, setOtpCountdown] = useState(0);
+  // regenMode: apakah OTP saat ini untuk REGENERATE (bukan lihat key)
+  const [regenMode, setRegenMode]      = useState(false);
+  const [regenLoading, setRegenLoading] = useState(false);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // ── Share / Invite state ────────────────────────────────────
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteStep, setInviteStep] = useState<'uid' | 'otp'>('uid');
+  const [pendingShareId, setPendingShareId] = useState<number | null>(null);
+  const [inviteUserId, setInviteUserId] = useState('');
+  const [inviteOtp, setInviteOtp] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteRes, setInviteRes] = useState<{success?: boolean; message?: string} | null>(null);
+
+  // OTP countdown timer
+  useEffect(() => {
+    if (otpCountdown <= 0) return;
+    const t = setInterval(() => setOtpCountdown(c => c - 1), 1000);
+    return () => clearInterval(t);
+  }, [otpCountdown]);
+
+  const handleRequestOtp = async (forRegen = false) => {
+    setOtpSending(true); setOtpError('');
+    try {
+      const res = await fetch(`/dashboard/devices/${device.id}/request-otp`, {
+        method: 'POST',
+        headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'Accept': 'application/json' },
+      });
+      const json = await res.json();
+      if (json.success) {
+        setOtpEmail(json.email);
+        setOtpCountdown(300);
+        setOtpCode('');
+        setOtpError('');
+        setRegenMode(forRegen);      // tandai apakah OTP ini untuk regen
+        setApiKeyModal('otp');       // kembali ke layar OTP
+        setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
+      } else {
+        setOtpError(json.message ?? 'Gagal mengirim OTP');
+      }
+    } catch { setOtpError('Gagal mengirim OTP. Coba lagi.'); }
+    finally { setOtpSending(false); }
+  };
+
+  // Buka modal: langsung tampilkan API key, dan clear state OTP
+  const openApiKeyModal = () => {
+    setRegenMode(false);
+    setOtpError('');
+    setOtpCode('');
+    // pakai device.api_key jika ada (karena model Device tidak hidden api_key)
+    setRevealedKey(device.api_key || 'Belum ada API Key');
+    setApiKeyModal('revealed'); 
+  };
+
+  // Alias (backward compat)
+  const setOtpModal = setApiKeyModal;
+
+  const handleVerifyOtp = async () => {
+    if (otpCode.length < 6) { setOtpError('Masukan 6 digit kode OTP'); return; }
+    // Karena sekarang verifyOTP HANYA DPANGGIL ketika regen, kita gunakan endpoint regenerate
+    const url = `/dashboard/devices/${device.id}/regenerate-key`;
+    setOtpVerifying(true); setOtpError('');
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ otp_code: otpCode }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setRevealedKey(json.api_key ?? '');
+        setApiKeyModal('revealed');
+        setRegenMode(false);
+        // Bisa tambahkan refresh prop device agar sync jika perlu (opsional krn dpt dr res)
+      } else {
+        setOtpError(json.message ?? 'OTP tidak valid');
+      }
+    } catch { setOtpError('Gagal memverifikasi. Coba lagi.'); }
+    finally { setOtpVerifying(false); setRegenLoading(false); }
+  };
+
+  const handleCopyKey = () => {
+    navigator.clipboard.writeText(revealedKey);
+    setKeyCopied(true);
+    setTimeout(() => setKeyCopied(false), 2000);
+  };
+
+  // Handle OTP box typing (auto-advance)
+  const handleOtpInput = (i: number, val: string) => {
+    const digits = val.replace(/\D/g, '').slice(-1);
+    const arr = otpCode.split('');
+    arr[i] = digits;
+    setOtpCode(prev => { const a = prev.split(''); a[i] = digits; return a.join(''); });
+    if (digits && i < 5) otpInputRefs.current[i + 1]?.focus();
+  };
+
+  const handleOtpKeyDown = (i: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otpCode[i] && i > 0) otpInputRefs.current[i - 1]?.focus();
+  };
+
+  const handleInviteUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inviteUserId.length !== 9) {
+      setInviteRes({ success: false, message: 'Unique ID harus ' + 9 + ' karakter.' });
+      return;
+    }
+    setInviteLoading(true); setInviteRes(null);
+    try {
+      const res = await fetch(`/dashboard/devices/${device.id}/invite`, {
+        method: 'POST',
+        headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ unique_id: inviteUserId }),
+      });
+      const data = await res.json();
+      setInviteRes({ success: data.success, message: data.message });
+      if (data.success && data.share_id) {
+        setPendingShareId(data.share_id);
+        setInviteStep('otp');
+      }
+    } catch {
+      setInviteRes({ success: false, message: 'Gagal mengirim undangan.' });
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const handleVerifyInviteOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (inviteOtp.length !== 6) return;
+    setInviteLoading(true); setInviteRes(null);
+    try {
+      const res = await fetch(`/devices/share/accept`, {
+        method: 'POST',
+        headers: { 'X-XSRF-TOKEN': getCsrfToken(), 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ share_id: pendingShareId, token: inviteOtp }),
+      });
+      const data = await res.json();
+      setInviteRes({ success: data.success, message: data.message });
+      if (data.success) {
+        setTimeout(() => {
+          setInviteModalOpen(false);
+          router.visit('/dashboard/monitoring'); // force reload
+        }, 2000);
+      }
+    } catch {
+      setInviteRes({ success: false, message: 'Gagal memverifikasi OTP.' });
+    } finally {
+      setInviteLoading(false);
+    }
+  };
 
   // Responsive width for the dialog chart
   const { ref: dialogChartRef, width: dialogChartWidth } = useContainerWidth();
@@ -588,6 +758,39 @@ export default function Monitoring({ device, order, sensors, latestData, statist
                 <div className="flex items-center justify-end gap-1.5 mb-1 font-medium"><Clock className="h-3.5 w-3.5" />Last Update</div>
                 <span className="text-slate-800 dark:text-gray-200 font-bold bg-slate-100 dark:bg-gray-800 px-2.5 py-1 rounded-md">{formatTs(realtimeData?.timestamp as string)}</span>
               </div>
+              
+              {!is_shared && (
+                <div className="ml-3 flex flex-col gap-2">
+                  {/* 🔑 API Key button */}
+                  <button
+                    onClick={openApiKeyModal}
+                    className="ml-auto w-full flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
+                  >
+                    <Key className="h-3.5 w-3.5" /> API Key
+                  </button>
+                  {/* Invite User button */}
+                  <button
+                    onClick={() => {
+                       setInviteModalOpen(true);
+                       setInviteStep('uid');
+                       setPendingShareId(null);
+                       setInviteRes(null);
+                       setInviteUserId('');
+                       setInviteOtp('');
+                    }}
+                    className="ml-auto w-full flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors"
+                  >
+                    <UserPlus className="h-3.5 w-3.5" /> Invite
+                  </button>
+                </div>
+              )}
+              {is_shared && (
+                <div className="ml-3">
+                  <div className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 text-amber-600 dark:text-amber-400">
+                    <UserPlus className="h-3.5 w-3.5" /> Shared Device
+                  </div>
+                </div>
+              )}
             </div>
           </CardHeader>
           {/* Expired banner inside card */}
@@ -855,6 +1058,258 @@ export default function Monitoring({ device, order, sensors, latestData, statist
           </div>
         </DialogContent>
       </Dialog>
-    </MonitoringLayout>
+
+      {/* ══════════════════════════════════════════
+          🔑 API Key OTP Modal
+      ══════════════════════════════════════════ */}
+      <Dialog open={apiKeyModal !== 'closed'} onOpenChange={(o) => !o && setApiKeyModal('closed')}>
+        <DialogContent className="sm:max-w-md bg-white dark:bg-gray-950 border border-slate-200 dark:border-gray-800">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-800 dark:text-gray-100">
+              <Key className="h-5 w-5 text-blue-500" />
+              {apiKeyModal === 'revealed' ? 'API Key Perangkat' : 'Verifikasi Identitas'}
+            </DialogTitle>
+          </DialogHeader>
+
+          {apiKeyModal === 'otp' && (
+            <div className="space-y-4">
+              <div className="bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg p-4">
+                <p className="text-xs font-semibold text-slate-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                  <Mail className="inline h-3.5 w-3.5 mr-1" /> OTP Terkirim
+                </p>
+                <p className="text-sm font-medium text-slate-800 dark:text-gray-200">{otpEmail}</p>
+                <p className="text-xs text-slate-500 dark:text-gray-400 mt-1">Cek inbox email / spam.</p>
+              </div>
+
+              {/* Countdown Bar */}
+              {otpCountdown > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-slate-500 font-medium">
+                    <span>Sisa waktu OTP</span>
+                    <span>{Math.floor(otpCountdown / 60)}:{(otpCountdown % 60).toString().padStart(2, '0')}</span>
+                  </div>
+                  <div className="w-full bg-slate-100 dark:bg-gray-800 rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="bg-emerald-500 h-1.5 rounded-full transition-all duration-1000 ease-linear"
+                      style={{ width: `${(otpCountdown / 300) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* OTP Input Boxes */}
+              <div className="pt-2">
+                <p className="text-xs text-slate-600 dark:text-gray-400 font-medium text-center mb-3">Masukkan 6 digit kode OTP untuk konfirmasi regenerasi key:</p>
+                <div className="flex justify-center gap-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <input
+                      key={i}
+                      ref={(el) => { otpInputRefs.current[i] = el; }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={otpCode[i] ?? ''}
+                      onChange={(e) => handleOtpInput(i, e.target.value)}
+                      onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                      autoComplete="one-time-code"
+                      className="w-12 h-14 text-center text-xl font-bold rounded-lg border border-slate-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-slate-800 dark:text-gray-100 focus:border-red-400 focus:ring focus:ring-red-400/20 focus:outline-none transition-all shadow-sm"
+                    />
+                  ))}
+                </div>
+              </div>
+
+              {otpError && (
+                <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded font-medium text-center">
+                  {otpError}
+                </div>
+              )}
+
+              {otpCountdown <= 0 && !otpError ? (
+                <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded font-medium text-center">
+                  OTP Kedaluwarsa. Silakan minta ulang.
+                </div>
+              ) : (
+                <>
+                  {/* Countdown */}
+                  {otpCountdown > 0 && (
+                    <p className="text-center text-xs text-slate-500 dark:text-gray-400">
+                      OTP kedaluwarsa dalam <span className="font-bold text-orange-500">{Math.floor(otpCountdown / 60)}:{String(otpCountdown % 60).padStart(2, '0')}</span>
+                    </p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleVerifyOtp()}
+                      disabled={otpVerifying || otpCode.length < 6}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900 text-white font-semibold text-sm transition-colors"
+                    >
+                      {otpVerifying ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+                      Verifikasi
+                    </button>
+                    <button
+                      onClick={handleRequestOtp}
+                      disabled={otpSending || otpCountdown > 270}
+                      className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-gray-700 text-slate-600 dark:text-gray-400 hover:bg-slate-50 dark:hover:bg-gray-800 disabled:opacity-40 text-sm font-medium transition-colors"
+                    >
+                      Kirim Ulang
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {apiKeyModal === 'revealed' && (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500 dark:text-gray-400">
+                API Key untuk perangkat <span className="font-semibold text-slate-800 dark:text-gray-200">{device.name}</span>:
+              </p>
+
+              {/* API Key display */}
+              <div className="relative">
+                <div className="flex items-center gap-2 bg-slate-50 dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-lg px-4 py-3">
+                  <span className="flex-1 font-mono text-sm text-slate-700 dark:text-gray-300 break-all">
+                    {showKey ? revealedKey : '•'.repeat(Math.min(revealedKey.length, 32))}
+                  </span>
+                  <button onClick={() => setShowKey(k => !k)} className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-gray-200">
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCopyKey}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
+                >
+                  {keyCopied ? <><Check className="h-4 w-4" /> Tersalin!</> : <><Copy className="h-4 w-4" /> Salin Key</>}
+                </button>
+                {/* Regenerate: kirim OTP BARU, bukan pakai OTP yang sama */}
+                <button
+                  onClick={() => handleRequestOtp(true)}
+                  disabled={otpSending || regenLoading}
+                  title="Regenerate API Key (butuh OTP baru)"
+                  className="px-4 py-2.5 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 text-sm font-medium transition-colors flex items-center gap-1.5"
+                >
+                  {(otpSending || regenLoading) ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                  Regenerate
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-400 dark:text-gray-600 text-center">Jangan bagikan API Key ke siapapun.</p>
+            </div>
+          )}
+        </DialogContent>
+        </Dialog>
+
+        {/* Invite User Modal */}
+        <Dialog open={inviteModalOpen} onOpenChange={setInviteModalOpen}>
+          <DialogContent className="max-w-md bg-white dark:bg-gray-950/95 backdrop-blur-xl border-slate-200 dark:border-[#00FF00]/10 shadow-2xl overflow-hidden rounded-2xl">
+            <DialogHeader className="border-b border-slate-100 dark:border-[#00FF00]/10 pb-4">
+              <DialogTitle className="flex items-center gap-2.5 text-xl font-black tracking-tight text-slate-800 dark:text-white">
+                <div className="p-2 bg-emerald-100 dark:bg-[#00FF00]/20 rounded-xl">
+                  <UserPlus className="h-5 w-5 text-emerald-600 dark:text-[#00FF00]" strokeWidth={2.5} />
+                </div>
+                Invite User
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="py-4 space-y-4">
+              {inviteStep === 'uid' ? (
+                <>
+                  <p className="text-sm text-slate-500 dark:text-gray-400">
+                    Masukkan 9 digit Unique ID akun user yang ingin di-invite. User tersebut akan menerima notifikasi di dashboard mereka berisi kode verifikasi.
+                  </p>
+
+                  <form onSubmit={handleInviteUser} className="space-y-4">
+                    <div>
+                      <label htmlFor="invite_uid" className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">
+                        Unique ID (Contoh: 123456789)
+                      </label>
+                      <input
+                        id="invite_uid"
+                        type="text"
+                        value={inviteUserId}
+                        onChange={e => setInviteUserId(e.target.value)}
+                        maxLength={9}
+                        placeholder="Masukkan 9 digit unik ID"
+                        className="w-full text-center tracking-[0.2em] font-mono text-lg font-bold px-4 py-3 rounded-xl border border-slate-200 dark:border-gray-800 bg-slate-50 dark:bg-gray-900 text-black dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500/50 transition-all font-[number]"
+                      />
+                    </div>
+                    
+                    {inviteRes && (
+                      <div className={`text-sm px-4 py-2.5 rounded-lg border font-medium flex items-start gap-2 ${inviteRes.success ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/30' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/30'}`}>
+                        {inviteRes.success ? <CheckCircle2 className="h-5 w-5 flex-shrink-0" /> : <AlertCircle className="h-5 w-5 flex-shrink-0" />}
+                        <span>{inviteRes.message}</span>
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={inviteLoading || inviteUserId.length !== 9}
+                      className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-600 text-white shadow-md transition-all shadow-emerald-500/20 active:scale-[0.98]"
+                    >
+                      {inviteLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <UserPlus className="h-5 w-5" />}
+                      Kirim Undangan
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-500 dark:text-gray-400">
+                    Undangan telah dikirim. Mintalah kode verifikasi (OTP) 6 digit dari user tersebut (bisa dilihat di menu Notifikasi Lonceng mereka) dan masukkan di bawah ini.
+                  </p>
+
+                  <form onSubmit={handleVerifyInviteOtp} className="space-y-4">
+                    <div>
+                      <label htmlFor="invite_otp" className="block text-sm font-semibold text-slate-700 dark:text-gray-300 mb-1">
+                        Kode Verifikasi (OTP)
+                      </label>
+                      <input
+                        id="invite_otp"
+                        type="text"
+                        value={inviteOtp}
+                        onChange={e => setInviteOtp(e.target.value)}
+                        maxLength={6}
+                        placeholder="Contoh: 123456"
+                        className="w-full text-center tracking-[0.5em] font-mono text-2xl font-black px-4 py-4 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 transition-all font-[number]"
+                      />
+                    </div>
+                    
+                    {inviteRes && (
+                      <div className={`text-sm px-4 py-2.5 rounded-lg border font-medium flex items-start gap-2 ${inviteRes.success ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800/30' : 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800/30'}`}>
+                        {inviteRes.success ? <CheckCircle2 className="h-5 w-5 flex-shrink-0" /> : <AlertCircle className="h-5 w-5 flex-shrink-0" />}
+                        <span>{inviteRes.message}</span>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                       <button
+                          type="button"
+                          onClick={() => { setInviteStep('uid'); setInviteRes(null); setInviteOtp(''); }}
+                          disabled={inviteLoading}
+                          className="flex-1 py-3 px-4 rounded-xl font-bold bg-slate-100 hover:bg-slate-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-slate-700 dark:text-gray-300 transition-all"
+                       >
+                         Kembali
+                       </button>
+                       <button
+                         type="submit"
+                         disabled={inviteLoading || inviteOtp.length !== 6}
+                         className="flex-[2] flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:text-slate-500 dark:disabled:bg-gray-800 dark:disabled:text-gray-600 text-white shadow-md transition-all shadow-emerald-500/20 active:scale-[0.98]"
+                       >
+                         {inviteLoading ? <RefreshCw className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                         Verifikasi Kode
+                       </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+      </MonitoringLayout>
+
   );
 }
